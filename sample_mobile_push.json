@@ -1,0 +1,60 @@
+{
+  "name": "11March_MP_6_Clinic_xxN2B",
+  "target_mode": "push",
+
+  "content": {
+    "title": "First vet visit? We got you 🐾",
+    "body": "Start your pet's care journey right. Visit Supertails+ Clinic and save ₹500 on your clinic bill. 🏥💜",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_6_Clinic_xxN2B",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "supertails-com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_6_Clinic_xxN2B",
+        "mutable-content": "true"
+      }
+    }
+  },
+
+  "devices": [
+    "android",
+    "ios"
+  ],
+
+  "when": "20260311 11:30",
+
+  "where": {
+    "common_profile_properties": {
+      "profile_fields": [
+        {
+          "name": "City",
+          "operator": "equals",
+          "value": "Bangalore"
+        },
+        {
+          "name": "30min_delivery",
+          "operator": "not_equals",
+          "value": true
+        }
+      ]
+    },
+
+    "did_not": {
+      "event_name": "Appointment Completed",
+      "from": 20250311,
+      "to": 20260311
+    },
+
+    "exclude_segments": [
+      "1773126146",
+      "1773126229",
+      "1772516124",
+      "1772524590",
+      "1772431933"
+    ]
+  }
+}

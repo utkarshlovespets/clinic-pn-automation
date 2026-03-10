@@ -1,0 +1,30 @@
+{
+  "name": "11March_MP_2_Clinic_xxRAJ",
+  "target_mode": "push",
+  "content": {
+    "title": "Rajaji Nagar, time to stay chill\ud83d\ude0e\n",
+    "body": "Your neighbourhood Supertails+ Clinic will be here soon. Drop by with your pet for stress-free visits. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_2_Clinic_xxRAJ",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_2_Clinic_xxRAJ",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260311 11:30",
+  "segment": "1773126229",
+  "exclude_segments": [
+    "1773126146"
+  ]
+}

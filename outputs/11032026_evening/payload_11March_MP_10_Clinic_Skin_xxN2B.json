@@ -1,0 +1,32 @@
+{
+  "name": "11March_MP_10_Clinic_Skin_xxN2B",
+  "target_mode": "push",
+  "content": {
+    "title": "Scratch mode activated? \ud83d\udc3e\n",
+    "body": "Skin discomfort can spread fast if ignored. Visit us for a FREE first skin health check. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_10_Clinic_Skin_xxN2B",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_10_Clinic_Skin_xxN2B",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260311 17:30",
+  "segment": "1772516124",
+  "exclude_segments": [
+    "1773126229",
+    "1773126146",
+    "1772431885"
+  ]
+}

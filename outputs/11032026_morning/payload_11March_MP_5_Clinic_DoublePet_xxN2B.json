@@ -1,0 +1,33 @@
+{
+  "name": "11March_MP_5_Clinic_DoublePet_xxN2B",
+  "target_mode": "push",
+  "content": {
+    "title": "Two floofs, one spa day \ud83d\udc3e\u2728",
+    "body": "Bring your pet and a friend\u2019s floof along. Book one grooming and enjoy the second FREE. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_5_Clinic_DoublePet_xxN2B",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_5_Clinic_DoublePet_xxN2B",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260311 11:30",
+  "segment": "1772431933",
+  "exclude_segments": [
+    "1773126146",
+    "1773126229",
+    "1772516124",
+    "1772524590"
+  ]
+}

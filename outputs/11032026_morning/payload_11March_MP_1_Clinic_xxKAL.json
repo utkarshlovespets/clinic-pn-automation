@@ -1,0 +1,27 @@
+{
+  "name": "11March_MP_1_Clinic_xxKAL",
+  "target_mode": "push",
+  "content": {
+    "title": "Your neighbourhood vet era begins \u2728",
+    "body": "Stress-free care for your pet is just around the corner. Visit Supertails+ Clinic in Kalyan Nagar today. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_1_Clinic_xxKAL",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_1_Clinic_xxKAL",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260311 11:30",
+  "segment": "1773126146"
+}

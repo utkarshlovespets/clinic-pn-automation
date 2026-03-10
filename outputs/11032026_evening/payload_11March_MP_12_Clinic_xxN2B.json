@@ -1,0 +1,44 @@
+{
+  "name": "11March_MP_12_Clinic_xxN2B",
+  "target_mode": "push",
+  "content": {
+    "title": "Stress-free is all that matters!\ud83c\udf92\ud83d\udc3e",
+    "body": "From consults to grooming, everything begins here. Visit Supertails+ Clinic with your pet and save \u20b9500 on your clinic bill. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_12_Clinic_xxN2B",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=11March_MP_12_Clinic_xxN2B",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260311 17:30",
+  "where": {
+    "common_profile_properties": {
+      "profile_fields": [
+        {
+          "name": "City",
+          "operator": "equals",
+          "value": "Bangalore"
+        }
+      ]
+    },
+    "exclude_segments": [
+      "1773126229",
+      "1773126146",
+      "1772431885",
+      "1772516124",
+      "1772524590"
+    ]
+  }
+}
