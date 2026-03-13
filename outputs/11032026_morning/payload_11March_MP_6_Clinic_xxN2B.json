@@ -34,7 +34,7 @@
         {
           "name": "30min_delivery",
           "operator": "not_equals",
-          "value": "True"
+          "value": true
         }
       ]
     },

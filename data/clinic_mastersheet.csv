@@ -1,4 +1,4 @@
-Date,Day,Campaign ID,Slot,Cohort Name,Exclusion,Title,Content
+z,Day,Campaign ID,Slot,Cohort Name,Exclusion,Title,Content
 03/02/2026,Tue,,,Kora_clinic_Feb'26,,"Stress-free vet visit, just a click away",Drop by Supertails+ Clinic for {{your pets}}'s FREE consultation. Stress-free way is {{pet}}'s way.💜
 03/02/2026,Tue,,,Brook_clinic_Feb'26,,"Clinic visits, made stress-free! 💜",Fear-free certified vets await {{your pet}} at Supertails+ Clinic. Get a FREE consultation today.🏥
 03/02/2026,Tue,,,Bnght_clinic_Feb'26,,Stress-free care on repeat!💜,{{Your pet}} deserves calm & stress-free care. Drop by Supertails+ Clinic for a FREE consult.🏥
@@ -276,46 +276,48 @@ Drop by with {your pet} for a spa session that saves you 50%. 🏥💜"
 10/03/2026,Tue,,Morning,Multiple Pet Parents,,Spa days are better in pairs 🐾,Bring {your pet} & a new floof to the clinic today. Enjoy Buy 1 Get 1 FREE grooming. 🏥💜
 10/03/2026,Tue,,Morning,Dental health,,Fresh breath > mystery smell 👀,Dental care keeps {your pet}'s mouth healthy. Get a FREE dental check at Supertails+ Clinic. 🏥💜
 10/03/2026,Tue,,Morning,N2B,,{your pet}'s first clinic chapter 📖,"From vaccines to grooming, everything starts here in a stress-free way. Visit today & save ₹500 on your clinic bill. 🏥💜"
-11/03/2026,Wed,,Morning,Kalyan Nagar,30_min_delivery,Your neighbourhood vet era begins ✨,Stress-free care for {your pet} is just around the corner. Visit Supertails+ Clinic in Kalyan Nagar today. 🏥💜
-11/03/2026,Wed,,Morning,Rajaji Nagar,30_min_delivery,"Rajaji Nagar, time to stay chill😎
-",Your neighbourhood Supertails+ Clinic will be here soon. Drop by with {your pet} for stress-free visits. 🏥💜
-11/03/2026,Wed,,Morning,Skin Health,30_min_delivery,That itch isn’t random 👀,Skin issues can spread quickly if ignored. Visit Supertails+ Clinic for a FREE first skin check. 🏥💜
-11/03/2026,Wed,,Morning,Gut health,30_min_delivery,That tummy deserves peace 🐾,Digestive discomfort can slow {your pet} down. Get a FREE first gut health checkup at Supertails+ Clinic. 🏥💜
-11/03/2026,Wed,,Morning,Multiple Pet Parents,30_min_delivery,"Two floofs, one spa day 🐾✨",Bring {your pet} and a friend’s floof along. Book one grooming and enjoy the second FREE. 🏥💜
-11/03/2026,Wed,,Morning,N2B,30_min_delivery,First vet visit? We got you 🐾,Start {your pet}'s care journey right. Visit Supertails+ Clinic and save ₹500 on your clinic bill. 🏥💜
-11/03/2026,Wed,,Evening,Rajaji Nagar,,The countdown begins...,"Supertails+ Clinic is now opening nearby for calm, stress-free care. Bring {your pet} & get 25% off on all clinic bills, this Saturday!. 🏥💜"
+11/03/2026,Wed,,Morning,Kalyan Nagar,,Your neighbourhood vet is pretty chill ✨,Stress-free care for {your pet} is just around the corner. Visit Supertails+ Clinic in Kalyan Nagar today. 🏥💜
+11/03/2026,Wed,,Morning,Rajaji Nagar,,"Rajaji Nagar, we'll be there in no time😎",Your neighbourhood Supertails+ Clinic will be here soon. Drop by with {your pet} for stress-free visits. 🏥💜
+11/03/2026,Wed,,Morning,Skin Health,,That itch isn’t random 👀,Skin issues can spread quickly if ignored. Visit Supertails+ Clinic for a FREE skin checkup. 🏥💜
+11/03/2026,Wed,,Morning,Gut health,,That tummy deserves peace 🐾,Digestive discomfort can slow {your pet} down. Get a FREE gut health checkup at Supertails+ Clinic. 🏥💜
+11/03/2026,Wed,,Morning,Multiple Pet Parents,,"Two floofs, one spa day 🐾✨",Bring {your pet} and a friend’s floof along. Book one grooming and enjoy the second FREE. 🏥💜
+11/03/2026,Wed,,Morning,N2B,,First vet visit? We got you 🐾,Start {your pet}'s care journey right. Visit Supertails+ Clinic and save ₹500 on your clinic bill. 🏥💜
+11/03/2026,Wed,,Evening,Rajaji Nagar,,We'll be here soon...🏥⏳,"Supertails+ Clinic is now opening nearby for calm, stress-free care. Bring {your pet} & get 25% off on all clinic bills.💜"
 11/03/2026,Wed,,Evening,Kalyan Nagar,,Kalyan Nagar pets found something new 👀,Supertails+ Clinic is now around the corner. Walk in with {your pet} for 1st stress-free vet care for FREE. 🏥💜
 11/03/2026,Wed,,Evening,Birthday,,Birthday zoomies deserve a glow-up 🎉,Celebrate {your pet}’s special month in style. Enjoy 50% off grooming at Supertails+ Clinic. 🏥💜
 11/03/2026,Wed,,Evening,Skin Health,Appointment Completed,"Scratch mode activated? 🐾
-",Skin discomfort can spread fast if ignored. Visit us for a FREE first skin health check. 🏥💜
+",Skin discomfort can spread fast if ignored. Visit us for a FREE skin health check. 🏥💜
 11/03/2026,Wed,,Evening,Gut health,Appointment Completed,"Happy tummy, happy zoomies 🐾",Upset stomachs can slow {your pet} down. Get a FREE gut health check at Supertails+ Clinic. 🏥💜
 11/03/2026,Wed,,Evening,N2B,Appointment Completed,Stress-free is all that matters!🎒🐾,"From consults to grooming, everything begins here. Visit Supertails+ Clinic with {your pet} and save ₹500 on your clinic bill. 🏥💜"
-12/03/2026,Thu,,Evening,Rajaji Nagar,,,
-12/03/2026,Thu,,Evening,Kalyan Nagar,,,
-12/03/2026,Thu,,Evening,Dental health,,,
-12/03/2026,Thu,,Evening,Gut health,,,
-12/03/2026,Thu,,Evening,Multiple Pet Parents,,,
-13/03/2026,Friday,,Evening,Rajaji Nagar,,,
-13/03/2026,Friday,,Evening,Kalyan Nagar,,,
-13/03/2026,Friday,,Evening,Birthday,,,
-13/03/2026,Friday,,Evening,Gut health,,,
-13/03/2026,Friday,,Evening,Dental health,,,
-13/03/2026,Friday,,Evening,N2B,,,
-14/03/2026,Saturday,,Morning,Rajaji Nagar,,,
-14/03/2026,Saturday,,Morning,Kalyan Nagar,,,
-14/03/2026,Saturday,,Morning,Birthday,,,
-14/03/2026,Saturday,,Morning,Gut health,,,
-14/03/2026,Saturday,,Morning,Dental health,,,
-14/03/2026,Saturday,,Morning,N2B,,,
-15/03/2026,Sunday,,Morning,Rajaji Nagar,,,
-15/03/2026,Sunday,,Morning,Kalyan Nagar,,,
-15/03/2026,Sunday,,Morning,Birthday,,,
-15/03/2026,Sunday,,Morning,Gut health,,,
-15/03/2026,Sunday,,Morning,Dental health,,,
-15/03/2026,Sunday,,Morning,N2B,,,
-15/03/2026,Sunday,,Evening,Rajaji Nagar,,,
-15/03/2026,Sunday,,Evening,Kalyan Nagar,,,
-15/03/2026,Sunday,,Evening,Birthday,,,
-15/03/2026,Sunday,,Evening,Gut health,,,
-15/03/2026,Sunday,,Evening,Dental health,,,
-15/03/2026,Sunday,,Evening,N2B,,,
+12/03/2026,Thu,,Evening,Rajaji Nagar,,Big news for {your pet}!🎬🐾,"A calm, Fear-Free clinic is opening soon. Drop by Supertails+ Clinic with {your pet} and say hello. 🏥💜"
+12/03/2026,Thu,,Evening,Kalyan Nagar,,Glow-up arc begins for {your pet} ✨🐾,Time for a fresh trim and fluff reset. Visit Supertails+ Clinic & get 50% OFF grooming for {your pet}. 🏥💜
+12/03/2026,Thu,,Evening,Dental health,,Fresh breath loading…⏳🐾,A quick dental check can prevent bigger issues. Drop by Supertails+ Clinic for a FREE dental checkup. 🏥💜
+12/03/2026,Thu,,Evening,Gut health,,Zoomies cancelled by tummy? 🐾,Digestive issues can slow {your pet} down. Visit Supertails+ Clinic for a FREE gut health checkup. 🏥💜
+12/03/2026,Thu,,Evening,Multiple Pet Parents,,Tag your pet’s spa partner 🐶🤝🐶,Got a friend with a floof? Perfect. Bring both to Supertails+ Clinic and enjoy B1G1 FREE grooming. 🏥💜
+13/03/2026,Friday,,Evening,Rajaji Nagar,,Plot twist: the vet is chill here 👀,"No stress, no drama, just gentle care for {your pet}. Supertails+ Clinic opens here soon. Visit with your floof. 🏥💜"
+13/03/2026,Friday,,Evening,Kalyan Nagar,,Bad hair day? Not on our watch 🐶💇,Bring {your pet} in for a glow-up session. Get 50% OFF grooming at Supertails+ Clinic. 🏥💜
+13/03/2026,Friday,,Evening,Birthday,,"Cake for you, spa for them 🎂🐾",Make {your pet}’s birthday month extra special. Get 50% OFF grooming at our clinic. 🏥💜
+13/03/2026,Friday,,Evening,Gut health,,"Tummy plotting a twist? 👀🐾
+",Digestive issues can quietly affect {your pet}. Drop by Supertails+ Clinic for a FREE gut health checkup. 🏥💜
+13/03/2026,Friday,,Evening,Dental health,,That breath… not giving mint vibes 👀🦷,Dental issues often go unnoticed in pets. Get {your pet} a FREE dental check at our clinic. 🏥💜
+13/03/2026,Friday,,Evening,N2B,,New pet parent arc unlocked 🎮🐾,Start {your pet}’s care journey right. Visit Supertails+ Clinic and save ₹500 on your clinic bill. 🏥💜
+14/03/2026,Saturday,,Morning,Rajaji Nagar,,Breaking news: vet visits just got nicer 🐾,Supertails+ Clinic will be here for calm care. Swing by with {your pet} and meet our vets today. 🏥💜
+14/03/2026,Saturday,,Morning,Kalyan Nagar,,Fur reset incoming ✂️🐶,Bring {your pet} over for a fresh trim and tidy-up. Enjoy 50% OFF grooming at Supertails+ Clinic today. 🏥💜
+14/03/2026,Saturday,,Morning,Birthday,,Birthday month = VIP treatment 🎉,"It’s {your pet}’s special month, after all. Celebrate with 50% OFF grooming at Supertails+ Clinic. 🏥💜"
+14/03/2026,Saturday,,Morning,Gut health,,When the tummy says “hmm” 🤔🐾,Digestive discomfort can show up in subtle ways. Bring {your pet} for a FREE gut health checkup at our clinic. 🏥💜
+14/03/2026,Saturday,,Morning,Dental health,,Plaque party? Not invited 🦷,Tartar buildup can affect {your pet}’s gums over time. Drop by for a FREE dental checkup at Supertails+ Clinic. 🏥💜
+14/03/2026,Saturday,,Morning,N2B,,First vet visit = big pet parent moment 🐾,Start strong with a calm clinic experience. Visit today and get ₹500 OFF your clinic bill. 🏥💜
+15/03/2026,Sunday,,Morning,Rajaji Nagar,,Neighbourhood pets have new plans 🐶,"Supertails+ Clinic will be welcoming local floofs soon. Walk in with {your pet} for gentle, stress-free care. 🏥💜"
+15/03/2026,Sunday,,Morning,Kalyan Nagar,,Salon appointment: booked for fluff ✨,A tidy coat and fresh paws go a long way. Visit Supertails+ Clinic and get 50% OFF grooming. 🏥💜
+15/03/2026,Sunday,,Morning,Birthday,,Birthday glow-up unlocked 🎂,Your pawstar deserves the spotlight this month. Treat them to 50% OFF grooming at Supertails+ Clinic. 🏥💜
+15/03/2026,Sunday,,Morning,Gut health,,Mood swings? Ask the tummy 🐾,Appetite changes or low energy can hint at gut trouble. Get a FREE gut health checkup for {your pet}. 🏥💜
+15/03/2026,Sunday,,Morning,Dental health,,Snack breath vs fresh breath 🦷,Healthy teeth mean happier chomps. Bring {your pet} for a FREE dental checkup today. 🏥💜
+15/03/2026,Sunday,,Morning,N2B,,Pet parenting level 1 begins 🐾,"Checkups, grooming, pharmacy...all under one roof. Visit Supertails+ Clinic and save ₹500 on your bill. 🏥💜"
+15/03/2026,Sunday,,Evening,Rajaji Nagar,,"Pet parents, this one’s for you 🐾","Supertails+ Clinic will be part of your neighbourhood soon. Bring {your pet} in for calm, stress-free care. 🏥💜"
+15/03/2026,Sunday,,Evening,Kalyan Nagar,,"Fresh fur time! 🐶
+",It’s the perfect day for a fluff refresh. Enjoy 50% OFF grooming at Supertails+ Clinic. 🏥💜
+15/03/2026,Sunday,,Evening,Birthday,,Someone’s birthday energy is showing 🎉,Make {your pet}’s birthday month extra memorable. Get 50% OFF grooming at our clinic. 🏥💜
+15/03/2026,Sunday,,Evening,Gut health,,Zoomies start in the gut 🐾,Healthy digestion keeps {your pet} playful and active. Visit for a FREE gut health checkup today. 🏥💜
+15/03/2026,Sunday,,Evening,Dental health,,Smile check for the floof 😁,Dental issues can stay hidden without a checkup. Stop by for a FREE dental checkup at Supertails+ Clinic. 🏥💜
+15/03/2026,Sunday,,Evening,N2B,,Your pet’s clinic debut 🎬🐾,"Make their first visit smooth and stress-free.
+Walk in today and get ₹500 OFF your clinic bill. 🏥💜"
