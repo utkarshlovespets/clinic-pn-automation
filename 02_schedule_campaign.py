@@ -14,9 +14,20 @@ SLOT_TIMES = {
     "morning": "11:30",
     "evening": "17:30",
 }
-SLOT_MP_OFFSET = {
-    "morning": 0,
-    "evening": 6,
+
+MONTH_ABBR_TO_NUM = {
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
 }
 
 # Campaign naming suffixes requested by business.
@@ -203,6 +214,38 @@ def build_schedule_string(run_date: pd.Timestamp, slot: str) -> str:
     return f"{run_date.strftime('%Y%m%d')} {SLOT_TIMES[slot]}"
 
 
+def parse_campaign_date(date_text: str | None) -> pd.Timestamp:
+    """Parse date from DDMonth (e.g. 12March) using current year, or DD/MM/YYYY."""
+    raw = (date_text or "").strip()
+    if not raw:
+        raw = input("Enter campaign date (e.g., 12March): ").strip()
+
+    if not raw:
+        return pd.Timestamp.now().normalize() + pd.Timedelta(days=1)
+
+    # Backward compatibility for DD/MM/YYYY.
+    if re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", raw):
+        return pd.to_datetime(raw, format="%d/%m/%Y", errors="raise").normalize()
+
+    match = re.fullmatch(r"(\d{1,2})\s*([A-Za-z]+)\s*(\d{4})?", raw)
+    if not match:
+        raise ValueError(
+            f"Invalid date '{raw}'. Use format like 12March (or DD/MM/YYYY)."
+        )
+
+    day = int(match.group(1))
+    month_token = re.sub(r"[^a-z]", "", match.group(2).lower())
+    if len(month_token) < 3:
+        raise ValueError(f"Invalid month in date '{raw}'.")
+
+    month = MONTH_ABBR_TO_NUM.get(month_token[:3])
+    if month is None:
+        raise ValueError(f"Invalid month in date '{raw}'.")
+
+    year = int(match.group(3)) if match.group(3) else pd.Timestamp.now().year
+    return pd.Timestamp(year=year, month=month, day=day).normalize()
+
+
 def build_deep_links(campaign_name: str) -> Tuple[str, str]:
     android = (
         "https://supertails.com/pages/supertails-clinic"
@@ -326,6 +369,7 @@ def create_payload(
     payload = {
         "name": campaign_name,
         "target_mode": "push",
+        "respect_frequency_caps": True,
         "content": {
             "title": normalize_dynamic_variables(title),
             "body": normalize_dynamic_variables(body),
@@ -387,15 +431,21 @@ def main() -> None:
     parser.add_argument("--clinic-csv", default=DEFAULT_CLINIC_CSV)
     parser.add_argument("--segment-map", default=DEFAULT_SEGMENT_MAP_CSV)
     parser.add_argument("--payload-output-dir", default="outputs")
-    parser.add_argument("--date", default=None, help="DD/MM/YYYY (default tomorrow)")
-    parser.add_argument("--live", action="store_true", help="Call API, default dry-run")
-    parser.add_argument(
-        "--live-limit",
-        type=int,
-        default=1,
-        help="Maximum campaigns to create in live mode (default 1 for development safety).",
-    )
+    parser.add_argument("--date", default=None, help="Date as 12March (current year) or DD/MM/YYYY")
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument("--dry-run", action="store_true", help="Dry run only, no campaigns created")
+    mode_group.add_argument("--test", action="store_true", help="Create exactly one test campaign; dry-run the rest")
+    mode_group.add_argument("--live", action="store_true", help="Create all campaigns")
     args = parser.parse_args()
+
+    if not (args.live or args.test or args.dry_run):
+        user_val = input("Select execution mode (dry/test/live): ").strip().lower()
+        if user_val == "live":
+            args.live = True
+        elif user_val == "test":
+            args.test = True
+        else:
+            args.dry_run = True
 
     script_dir = Path(__file__).resolve().parent
     env = dotenv_values(script_dir / ".env")
@@ -411,11 +461,7 @@ def main() -> None:
     if not account_id or not passcode or not region:
         raise ValueError("Missing CLEVERTAP_ACCOUNT_ID / CLEVERTAP_PASSCODE / CLEVERTAP_REGION in .env")
 
-    run_date = (
-        pd.to_datetime(args.date, format="%d/%m/%Y", errors="raise").normalize()
-        if args.date
-        else (pd.Timestamp.now().normalize() + pd.Timedelta(days=1))
-    )
+    run_date = parse_campaign_date(args.date)
 
     clinic_df = load_clinic_sheet(Path(args.clinic_csv))
     segment_map = load_segment_map(Path(args.segment_map))
@@ -430,14 +476,25 @@ def main() -> None:
         & clinic_df["Content"].astype(str).str.strip().ne("")
     ].copy()
 
-    mode = "LIVE" if args.live else "DRY-RUN"
+    if args.live:
+        mode = "LIVE"
+    elif args.test:
+        mode = "TEST"
+    else:
+        mode = "DRY-RUN"
     print(f"Mode: {mode}")
     print(f"Target date: {run_date.strftime('%d/%m/%Y')}")
     print("Delivery mode: scheduled only")
+    test_serial = 1
+    if args.test:
+        print("Test mode: creating only 1 campaign, dry-running the rest")
+        val = input("Enter the serial number (MP index) to test [default 1]: ").strip()
+        if val.isdigit():
+            test_serial = int(val)
     if args.live:
-        print(f"Live mode cap: max {args.live_limit} campaign(s)")
+        print("Live mode: creating all campaigns")
 
-    if args.live and not android_wzrk_cid:
+    if (args.live or args.test) and not android_wzrk_cid:
         raise ValueError(
             "Missing Android channel config. Set CLEVERTAP_ANDROID_WZRK_CID in .env "
             "(example: Marketing, or your exact CleverTap Android notification channel)."
@@ -449,13 +506,10 @@ def main() -> None:
 
     created = 0
     skipped = 0
-    live_attempts = 0
-    stop_live = False
+    posted_count = 0
+    daily_mp_index = 1
 
     for slot in ["morning", "evening"]:
-        if stop_live:
-            break
-
         slot_rows = day_rows.loc[day_rows["_slot"].eq(slot)].copy()
         if slot_rows.empty:
             print(f"[{slot}] no rows, skipped")
@@ -465,13 +519,9 @@ def main() -> None:
         prior_cohorts: List[str] = []
 
         for idx, (_, row) in enumerate(slot_rows.iterrows()):
-            if args.live and live_attempts >= max(args.live_limit, 0):
-                print("Live mode campaign cap reached. Stopping further scheduling.")
-                stop_live = True
-                break
-
             cohort_name = str(row["_cohort"]).strip()
-            mp_index = SLOT_MP_OFFSET[slot] + idx + 1
+            mp_index = daily_mp_index
+            daily_mp_index += 1
 
             campaign_name = build_campaign_name(run_date, mp_index, cohort_name)
             schedule_at = build_schedule_string(run_date, slot)
@@ -539,8 +589,10 @@ def main() -> None:
                 payload=payload,
             )
 
-            if args.live:
-                live_attempts += 1
+            should_post = args.live or (args.test and mp_index == test_serial)
+
+            if should_post:
+                posted_count += 1
                 try:
                     result = post_campaign(api_url, account_id, passcode, payload)
                     print(f"[{slot}] created {campaign_name} -> {result} | payload_file={payload_path}")
@@ -557,8 +609,10 @@ def main() -> None:
             prior_cohorts.append(cohort_name)
 
     print(f"\nDone. created={created}, skipped={skipped}")
-    if not args.live:
-        print("Dry-run only. Use --live to create scheduled campaigns in CleverTap.")
+    if args.test:
+        print("Test mode complete. Exactly one campaign was posted (if available).")
+    elif not args.live:
+        print("Dry-run only. Use --test for one campaign or --live for all campaigns.")
 
 
 if __name__ == "__main__":

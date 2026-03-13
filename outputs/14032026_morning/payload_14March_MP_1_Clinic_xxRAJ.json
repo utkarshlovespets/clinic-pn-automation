@@ -1,0 +1,27 @@
+{
+  "name": "14March_MP_1_Clinic_xxRAJ",
+  "target_mode": "push",
+  "content": {
+    "title": "Breaking news: vet visits just got nicer \ud83d\udc3e",
+    "body": "Supertails+ Clinic will be here for calm care. Swing by with your pet and meet our vets today. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=14March_MP_1_Clinic_xxRAJ",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=14March_MP_1_Clinic_xxRAJ",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260314 11:30",
+  "segment": "1773126229"
+}

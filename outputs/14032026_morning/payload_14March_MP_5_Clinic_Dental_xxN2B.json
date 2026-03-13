@@ -1,0 +1,33 @@
+{
+  "name": "14March_MP_5_Clinic_Dental_xxN2B",
+  "target_mode": "push",
+  "content": {
+    "title": "Plaque party? Not invited \ud83e\uddb7",
+    "body": "Tartar buildup can affect your pet\u2019s gums over time. Drop by for a FREE dental checkup at Supertails+ Clinic. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=14March_MP_5_Clinic_Dental_xxN2B",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=14March_MP_5_Clinic_Dental_xxN2B",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260314 11:30",
+  "segment": "1772526598",
+  "exclude_segments": [
+    "1773126229",
+    "1773126146",
+    "1772431885",
+    "1772524590"
+  ]
+}

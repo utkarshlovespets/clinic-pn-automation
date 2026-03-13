@@ -1,0 +1,31 @@
+{
+  "name": "13March_MP_2_Clinic_xxKAL",
+  "target_mode": "push",
+  "respect_frequency_caps": true,
+  "content": {
+    "title": "Bad hair day? Not on our watch \ud83d\udc36\ud83d\udc87",
+    "body": "Bring your pet in for a glow-up session. Get 50% OFF grooming at Supertails+ Clinic. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=13March_MP_2_Clinic_xxKAL",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=13March_MP_2_Clinic_xxKAL",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260313 17:30",
+  "segment": "1773126146",
+  "exclude_segments": [
+    "1773126229"
+  ]
+}

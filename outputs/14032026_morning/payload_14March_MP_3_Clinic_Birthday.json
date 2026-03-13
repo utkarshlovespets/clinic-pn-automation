@@ -1,0 +1,31 @@
+{
+  "name": "14March_MP_3_Clinic_Birthday",
+  "target_mode": "push",
+  "content": {
+    "title": "Birthday month = VIP treatment \ud83c\udf89",
+    "body": "It\u2019s your pet\u2019s special month, after all. Celebrate with 50% OFF grooming at Supertails+ Clinic. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=14March_MP_3_Clinic_Birthday",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=14March_MP_3_Clinic_Birthday",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260314 11:30",
+  "segment": "1772431885",
+  "exclude_segments": [
+    "1773126229",
+    "1773126146"
+  ]
+}

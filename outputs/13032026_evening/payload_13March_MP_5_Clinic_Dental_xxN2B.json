@@ -1,0 +1,34 @@
+{
+  "name": "13March_MP_5_Clinic_Dental_xxN2B",
+  "target_mode": "push",
+  "respect_frequency_caps": true,
+  "content": {
+    "title": "That breath\u2026 not giving mint vibes \ud83d\udc40\ud83e\uddb7",
+    "body": "Dental issues often go unnoticed in pets. Get your pet a FREE dental check at our clinic. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=13March_MP_5_Clinic_Dental_xxN2B",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=13March_MP_5_Clinic_Dental_xxN2B",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260313 17:30",
+  "segment": "1772526598",
+  "exclude_segments": [
+    "1773126229",
+    "1773126146",
+    "1772431885",
+    "1772524590"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "13March_MP_4_Clinic_Gut_xxN2B",
+  "target_mode": "push",
+  "respect_frequency_caps": true,
+  "content": {
+    "title": "Tummy plotting a twist? \ud83d\udc40\ud83d\udc3e\n",
+    "body": "Digestive issues can quietly affect your pet. Drop by Supertails+ Clinic for a FREE gut health checkup. \ud83c\udfe5\ud83d\udc9c",
+    "platform_specific": {
+      "android": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=13March_MP_4_Clinic_Gut_xxN2B",
+        "wzrk_cid": "Transactional",
+        "enable_rendermax": true,
+        "notification_delivery_priority": "high",
+        "notification_tray_priority": "max"
+      },
+      "ios": {
+        "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=13March_MP_4_Clinic_Gut_xxN2B",
+        "mutable-content": "true"
+      }
+    }
+  },
+  "devices": [
+    "android",
+    "ios"
+  ],
+  "when": "20260313 17:30",
+  "segment": "1772524590",
+  "exclude_segments": [
+    "1773126229",
+    "1773126146",
+    "1772431885"
+  ]
+}
