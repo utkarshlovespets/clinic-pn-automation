@@ -1,6 +1,7 @@
 {
   "name": "14March_MP_4_Clinic_Gut_xxN2B",
   "target_mode": "push",
+  "respect_frequency_caps": true,
   "content": {
     "title": "When the tummy says \u201chmm\u201d \ud83e\udd14\ud83d\udc3e",
     "body": "Digestive discomfort can show up in subtle ways. Bring your pet for a FREE gut health checkup at our clinic. \ud83c\udfe5\ud83d\udc9c",

@@ -558,13 +558,7 @@ def main() -> None:
 
             seg_id_text = segment_map.get(cohort_name, {}).get("segment_id", "").strip()
             segment_id: int | None = None
-            # N2B can run on City=Bangalore where filter when segment id is not available.
-            if cohort_name != "N2B":
-                if not seg_id_text.isdigit():
-                    print(f"[{slot}] {cohort_name}: missing/invalid segment_id '{seg_id_text}', skipped")
-                    skipped += 1
-                    prior_cohorts.append(cohort_name)
-                    continue
+            if seg_id_text.isdigit():
                 segment_id = int(seg_id_text)
 
             payload = create_payload(

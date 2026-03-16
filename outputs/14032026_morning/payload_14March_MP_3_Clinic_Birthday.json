@@ -1,6 +1,7 @@
 {
   "name": "14March_MP_3_Clinic_Birthday",
   "target_mode": "push",
+  "respect_frequency_caps": true,
   "content": {
     "title": "Birthday month = VIP treatment \ud83c\udf89",
     "body": "It\u2019s your pet\u2019s special month, after all. Celebrate with 50% OFF grooming at Supertails+ Clinic. \ud83c\udfe5\ud83d\udc9c",

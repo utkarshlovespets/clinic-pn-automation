@@ -3,8 +3,8 @@
   "target_mode": "push",
   "respect_frequency_caps": true,
   "content": {
-    "title": "New pet parent arc unlocked \ud83c\udfae\ud83d\udc3e",
-    "body": "Start your pet\u2019s care journey right. Visit Supertails+ Clinic and save \u20b9500 on your clinic bill. \ud83c\udfe5\ud83d\udc9c",
+    "title": "New pet parent arc unlocked 🎮🐾",
+    "body": "Start your pet’s care journey right. Visit Supertails+ Clinic and save ₹500 on your clinic bill. 🏥💜",
     "platform_specific": {
       "android": {
         "deep_link": "https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign=13March_MP_6_Clinic_xxN2B",
@@ -28,19 +28,14 @@
     "common_profile_properties": {
       "profile_fields": [
         {
-          "name": "City", 
+          "name": "City",
           "operator": "equals",
           "value": "Bangalore"
         },
         {
-          "name": "Segments", 
-          "operator": "exclude",
-          "value": "Clinic_Gut_N2B_Mar'26"
-        },
-        {
-          "name": "Segments", 
-          "operator": "exclude",
-          "value": "Clinic_Skin_N2B_Mar'26"
+          "name": "Clinic Cohort",
+          "operator": "does_not_contain",
+          "value": "Repeat"
         }
       ]
     }

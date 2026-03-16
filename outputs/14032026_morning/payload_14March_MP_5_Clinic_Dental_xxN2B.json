@@ -1,6 +1,7 @@
 {
   "name": "14March_MP_5_Clinic_Dental_xxN2B",
   "target_mode": "push",
+  "respect_frequency_caps": true,
   "content": {
     "title": "Plaque party? Not invited \ud83e\uddb7",
     "body": "Tartar buildup can affect your pet\u2019s gums over time. Drop by for a FREE dental checkup at Supertails+ Clinic. \ud83c\udfe5\ud83d\udc9c",

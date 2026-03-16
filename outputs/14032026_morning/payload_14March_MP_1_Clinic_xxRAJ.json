@@ -1,6 +1,7 @@
 {
   "name": "14March_MP_1_Clinic_xxRAJ",
   "target_mode": "push",
+  "respect_frequency_caps": true,
   "content": {
     "title": "Breaking news: vet visits just got nicer \ud83d\udc3e",
     "body": "Supertails+ Clinic will be here for calm care. Swing by with your pet and meet our vets today. \ud83c\udfe5\ud83d\udc9c",

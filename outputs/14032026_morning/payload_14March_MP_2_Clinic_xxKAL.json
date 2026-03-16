@@ -1,6 +1,7 @@
 {
   "name": "14March_MP_2_Clinic_xxKAL",
   "target_mode": "push",
+  "respect_frequency_caps": true,
   "content": {
     "title": "Fur reset incoming \u2702\ufe0f\ud83d\udc36",
     "body": "Bring your pet over for a fresh trim and tidy-up. Enjoy 50% OFF grooming at Supertails+ Clinic today. \ud83c\udfe5\ud83d\udc9c",
