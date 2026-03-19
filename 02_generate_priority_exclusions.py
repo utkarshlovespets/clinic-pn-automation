@@ -1,225 +1,331 @@
+"""Generate per-priority exclusion CSVs from clinic_mastersheet and clinic_user_base_mastersheet.
+
+⚠️  DISCLAIMER: This script only generates intermediate data files.
+    No CleverTap API calls are made here. Campaign triggering requires
+    04_trigger_campaign.py run explicitly with the --live flag.
+
+Usage:
+    python 02_generate_priority_exclusions.py
+    python 02_generate_priority_exclusions.py --clinic-csv data/clinic_mastersheet.csv \\
+        --user-base-csv data/clinic_user_base_mastersheet.csv --output-dir outputs
+"""
+
 import argparse
-import re
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 import pandas as pd
 
+from utils import normalize_cohort, sanitize_filename
 
-def normalize_key(value: str) -> str:
-    """Lowercase and keep only alphanumeric chars for robust matching."""
-    text = str(value).strip().lower()
-    # Treat quantity variants as equivalent (e.g., multiple/double/two -> 2).
-    text = re.sub(r"\b(multiple|double|two|2x)\b", "2", text)
-    return re.sub(r"[^a-z0-9]", "", text)
-
-
-def parse_tag_to_cohort_key(tag_value: str) -> str:
-    """Convert tag strings like Healthcare:Clinic_VaccineDueN2B_Cx -> vaccineduen2b."""
-    if pd.isna(tag_value):
-        return ""
-
-    raw = str(tag_value).strip()
-    if ":" in raw:
-        raw = raw.split(":", 1)[1]
-
-    # Remove common wrappers in tag naming.
-    raw = re.sub(r"^clinic_", "", raw, flags=re.IGNORECASE)
-    raw = re.sub(r"_cx$", "", raw, flags=re.IGNORECASE)
-
-    return normalize_key(raw)
+# -- Feature flags ------------------------------------------------------------
+# Set to True to enable Exclusion-column-based filtering once the column
+# contains real data and the feature is ready for production.
+ENABLE_EXCLUSION_COL: bool = False
 
 
-def sanitize_filename(name: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", str(name).strip())
-    return safe.strip("_") or "unnamed"
+# -- Exclusion column helper (written but disabled) ---------------------------
+
+def parse_exclusion_col(exclusion_str: str) -> List[str]:
+    """Parse the Exclusion column value into a list of normalized cohort keys.
+
+    The Exclusion column contains comma-separated cohort names whose members
+    should be excluded from the current cohort, regardless of priority order.
+
+    NOTE: This function is implemented but intentionally NOT called while
+    ENABLE_EXCLUSION_COL is False.  Enable it by setting the flag above.
+
+    Args:
+        exclusion_str: Raw cell value from the Exclusion column.
+
+    Returns:
+        List of normalized cohort keys (empty list if blank / NaN).
+    """
+    if not exclusion_str or pd.isna(exclusion_str):
+        return []
+    parts = str(exclusion_str).split(",")
+    return [normalize_cohort(p) for p in parts if p.strip()]
 
 
-def pick_slot_column(df: pd.DataFrame) -> str:
-    """Prefer Campaign Name for morning/evening slot markers, then fallback to Slot."""
-    for col in ["Campaign Name", "Campiagn Name", "Slot"]:
-        if col in df.columns:
-            values = df[col].fillna("").astype(str).str.strip().str.lower()
-            if values.isin(["morning", "evening"]).any():
-                return col
-    raise ValueError("No slot column found with values 'morning'/'evening'.")
+# -- Data loaders -------------------------------------------------------------
 
+def load_user_base(path: Path) -> pd.DataFrame:
+    """Load and validate clinic_user_base_mastersheet.csv.
+
+    Expected columns: Email, Cohort Name, First Name, Pet Name
+    'First Name' and 'Pet Name' are optional (blank cells are kept as-is).
+
+    Returns a DataFrame with an additional '_cohort_key' column.
+    """
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+
+    required = {"Email", "Cohort Name"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"clinic_user_base_mastersheet is missing columns: {sorted(missing)}"
+        )
+
+    # Ensure optional columns exist (may be absent in early data versions).
+    for col in ("First Name", "Pet Name"):
+        if col not in df.columns:
+            df[col] = ""
+
+    # Normalise emails; drop blanks and clearly invalid entries.
+    df["_email"] = df["Email"].str.strip().str.lower()
+    df = df[
+        df["_email"].ne("")
+        & df["_email"].str.contains("@", regex=False)
+        & df["_email"].ne("#error!")
+    ].copy()
+
+    df["_cohort_key"] = df["Cohort Name"].map(normalize_cohort)
+
+    return df.reset_index(drop=True)
+
+
+def build_cohort_email_index(
+    user_df: pd.DataFrame,
+) -> Dict[str, List[Tuple[str, str, str]]]:
+    """Build a lookup: normalized_cohort_key -> [(email, first_name, pet_name), ...].
+
+    Multi-pet / multi-name users are preserved as separate tuples so that
+    each pet receives its own personalized notification.
+    """
+    index: Dict[str, List[Tuple[str, str, str]]] = {}
+    for _, row in user_df.iterrows():
+        key = row["_cohort_key"]
+        if not key:
+            continue
+        entry = (
+            row["_email"],
+            row.get("First Name", "").strip(),
+            row.get("Pet Name", "").strip(),
+        )
+        index.setdefault(key, []).append(entry)
+    return index
+
+
+def load_clinic_mastersheet(path: Path) -> pd.DataFrame:
+    """Load and validate clinic_mastersheet.csv.
+
+    Expected columns: Date, Day, Slot, Cohort Name, Exclusion, Title, Content
+    Adds '_date' (Timestamp) and '_slot' (lowercase string) columns.
+    Rows with unparseable dates, blank cohort names, or both Title AND Content
+    blank are filtered out.
+    """
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+
+    required = {"Date", "Cohort Name", "Title", "Content"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"clinic_mastersheet is missing columns: {sorted(missing)}"
+        )
+
+    if "Slot" not in df.columns:
+        df["Slot"] = ""
+    if "Exclusion" not in df.columns:
+        df["Exclusion"] = ""
+
+    df["_date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
+    df["_slot"] = df["Slot"].fillna("").str.strip().str.lower()
+
+    usable = (
+        df["_date"].notna()
+        & df["Cohort Name"].str.strip().ne("")
+        & ~(df["Title"].str.strip().eq("") & df["Content"].str.strip().eq(""))
+    )
+    df = df[usable].copy().reset_index(drop=True)
+
+    return df
+
+
+# -- Core build logic ----------------------------------------------------------
 
 def build_priority_files(
     clinic_df: pd.DataFrame,
-    cohort_df: pd.DataFrame,
+    cohort_index: Dict[str, List[Tuple[str, str, str]]],
     run_date: pd.Timestamp,
     run_slot: str,
     output_dir: Path,
 ) -> bool:
-    """Generate exclusion CSVs for one date+slot combo.
+    """Generate exclusion CSVs and metadata for one date + slot combination.
 
-    Returns True if rows were found and files were written, False if no data
-    exists for this date/slot (caller should skip silently).
+    Priority ordering is determined by row order in clinic_df for the given
+    date and slot.  Users targeted by a higher-priority cohort are excluded
+    from all lower-priority cohorts.
+
+    Returns True if at least one row was found and files were written.
     """
-    run_df = clinic_df.loc[
-        clinic_df["_slot"].eq(run_slot)
-        & clinic_df["_date"].eq(run_date)
-        & clinic_df["Cohort Name"].str.strip().ne("")
-        & clinic_df["Title"].str.strip().ne("")
-        & clinic_df["Content"].str.strip().ne(""),
-        ["Date", "Cohort Name", "Title", "Content"],
+    run_df = clinic_df[
+        clinic_df["_date"].eq(run_date) & clinic_df["_slot"].eq(run_slot)
     ].copy().reset_index(drop=True)
 
     if run_df.empty:
         return False
 
+    # Deduplicate: if the same cohort appears multiple times for the same
+    # date+slot, keep only the first occurrence (first row = highest priority).
+    run_df = run_df.drop_duplicates(subset=["Cohort Name"], keep="first").reset_index(
+        drop=True
+    )
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     targeted_emails: set = set()
     summary_rows = []
+    campaign_meta_rows = []
 
     for priority, (_, row) in enumerate(run_df.iterrows(), start=1):
         cohort_name = str(row["Cohort Name"]).strip()
-        cohort_key = normalize_key(cohort_name)
+        cohort_key = normalize_cohort(cohort_name)
 
-        exact_match = cohort_df[cohort_df["_tag_key"].eq(cohort_key)]
-        if exact_match.empty:
-            matched_df = cohort_df[
-                cohort_df["_tag_key"].apply(
-                    lambda tag_key: bool(tag_key)
-                    and (cohort_key in tag_key or tag_key in cohort_key)
-                )
-            ]
+        candidate_tuples = cohort_index.get(cohort_key, [])
+        input_candidates = len({t[0] for t in candidate_tuples})  # unique emails
+
+        # -- Exclusion column (disabled) -----------------------------------
+        excluded_by_exclusion_col = 0
+        if ENABLE_EXCLUSION_COL:
+            exclusion_keys = parse_exclusion_col(row.get("Exclusion", ""))
+            exclusion_emails: set = set()
+            for ex_key in exclusion_keys:
+                for t in cohort_index.get(ex_key, []):
+                    exclusion_emails.add(t[0])
         else:
-            matched_df = exact_match
+            exclusion_emails = set()
+        # -----------------------------------------------------------------
 
-        candidate_emails = set(matched_df["_email"].tolist())
-        final_emails = sorted(candidate_emails - targeted_emails)
-        targeted_emails.update(final_emails)
+        # Apply priority exclusion (and optional column exclusion).
+        final_tuples = [
+            t
+            for t in candidate_tuples
+            if t[0] not in targeted_emails and t[0] not in exclusion_emails
+        ]
 
+        excluded_by_priority = input_candidates - len(
+            {t[0] for t in final_tuples}
+        ) - excluded_by_exclusion_col
+
+        # Update targeted set (by email, not by tuple -- one email = one slot).
+        targeted_emails.update(t[0] for t in final_tuples)
+
+        # Write per-priority CSV: Email, First Name, Pet Name
         out_name = f"{priority:02d}_{sanitize_filename(cohort_name)}.csv"
-        pd.DataFrame({"Email": final_emails}).to_csv(output_dir / out_name, index=False)
+        pd.DataFrame(
+            [{"Email": t[0], "First Name": t[1], "Pet Name": t[2]} for t in final_tuples]
+        ).to_csv(output_dir / out_name, index=False)
 
         summary_rows.append(
             {
                 "priority": priority,
                 "cohort_name": cohort_name,
-                "input_candidates": len(candidate_emails),
-                "excluded_by_higher_priority": len(candidate_emails) - len(final_emails),
-                "final_count": len(final_emails),
+                "input_candidates": input_candidates,
+                "excluded_by_priority": excluded_by_priority,
+                "excluded_by_exclusion_col": excluded_by_exclusion_col,
+                "final_count": len(final_tuples),
                 "output_file": out_name,
+            }
+        )
+        campaign_meta_rows.append(
+            {
+                "priority": priority,
+                "cohort_name": cohort_name,
+                "title_template": str(row.get("Title", "")).strip(),
+                "content_template": str(row.get("Content", "")).strip(),
             }
         )
 
     pd.DataFrame(summary_rows).to_csv(output_dir / "summary.csv", index=False)
+    pd.DataFrame(campaign_meta_rows).to_csv(
+        output_dir / "campaign_meta.csv", index=False
+    )
 
+    date_str = run_date.strftime("%d/%m/%Y")
+    total_final = sum(r["final_count"] for r in summary_rows)
     print(
-        f"  [{run_date.strftime('%d/%m/%Y')} | {run_slot}] "
-        f"{len(summary_rows)} priorities processed → {output_dir}"
+        f"  [{date_str} | {run_slot}] "
+        f"{len(summary_rows)} cohort(s) -> {total_final} user rows -> {output_dir}"
     )
     return True
 
 
-def load_and_prepare(
-    clinic_csv: Path, cohort_csv: Path
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Load, validate, and pre-process both source CSVs.
-
-    Returns (clinic_df, cohort_df).
-    """
-    clinic_df = pd.read_csv(clinic_csv, dtype=str, keep_default_na=False)
-    cohort_df = pd.read_csv(cohort_csv, dtype=str, keep_default_na=False)
-
-    required_clinic_cols = {"Date", "Cohort Name", "Title", "Content"}
-    missing_clinic = required_clinic_cols - set(clinic_df.columns)
-    if missing_clinic:
-        raise ValueError(f"clinic_mastersheet is missing columns: {sorted(missing_clinic)}")
-
-    required_cohort_cols = {"Email", "Tags"}
-    missing_cohort = required_cohort_cols - set(cohort_df.columns)
-    if missing_cohort:
-        raise ValueError(f"master_cohort is missing columns: {sorted(missing_cohort)}")
-
-    # Pre-process clinic_df.
-    slot_col = pick_slot_column(clinic_df)
-    clinic_df["_slot"] = clinic_df[slot_col].fillna("").astype(str).str.strip().str.lower()
-    clinic_df["_date"] = pd.to_datetime(clinic_df["Date"], format="%d/%m/%Y", errors="coerce")
-
-    usable = (
-        clinic_df["_slot"].isin(["morning", "evening"])
-        & clinic_df["_date"].notna()
-        & clinic_df["Cohort Name"].str.strip().ne("")
-        & clinic_df["Title"].str.strip().ne("")
-        & clinic_df["Content"].str.strip().ne("")
-    )
-    if not usable.any():
-        raise ValueError("No usable rows found in clinic_mastersheet.")
-
-    # Pre-process cohort_df.
-    cohort_df["_email"] = cohort_df["Email"].fillna("").astype(str).str.strip().str.lower()
-    cohort_df = cohort_df[
-        cohort_df["_email"].ne("")
-        & cohort_df["_email"].ne("#error!")
-        & cohort_df["_email"].str.contains("@", regex=False)
-    ].copy()
-    cohort_df["_tag_key"] = cohort_df["Tags"].map(parse_tag_to_cohort_key)
-
-    return clinic_df, cohort_df
-
+# -- Entry point ---------------------------------------------------------------
 
 def main() -> None:
+    script_dir = Path(__file__).resolve().parent
+
     parser = argparse.ArgumentParser(
         description=(
-            "Generate per-priority exclusion CSVs for the latest date and the following day, "
-            "for both morning and evening slots, based on available clinic master sheet data."
+            "Generate per-priority exclusion CSVs from clinic_mastersheet "
+            "and clinic_user_base_mastersheet for today and tomorrow, "
+            "both morning and evening slots."
         )
     )
     parser.add_argument(
         "--clinic-csv",
         default="data/clinic_mastersheet.csv",
-        help="Path to clinic master sheet CSV",
+        help="Path to clinic_mastersheet.csv (default: data/clinic_mastersheet.csv)",
     )
     parser.add_argument(
-        "--cohort-csv",
-        default="data/master_cohort.csv",
-        help="Path to master cohort CSV",
+        "--user-base-csv",
+        default="data/clinic_user_base_mastersheet.csv",
+        help=(
+            "Path to clinic_user_base_mastersheet.csv "
+            "(default: data/clinic_user_base_mastersheet.csv)"
+        ),
     )
     parser.add_argument(
         "--output-dir",
         default="outputs",
-        help="Base output directory. Each slot writes to <output-dir>/<DDMMYYYY>_<slot>/",
+        help="Base output directory (default: outputs)",
     )
-
     args = parser.parse_args()
 
-    clinic_path = Path(args.clinic_csv)
-    cohort_path = Path(args.cohort_csv)
+    clinic_path = (script_dir / args.clinic_csv).resolve()
+    user_base_path = (script_dir / args.user_base_csv).resolve()
+    base_output = (script_dir / args.output_dir).resolve()
 
     if not clinic_path.exists():
-        raise FileNotFoundError(f"Clinic CSV not found: {clinic_path}")
-    if not cohort_path.exists():
-        raise FileNotFoundError(f"Cohort CSV not found: {cohort_path}")
+        raise FileNotFoundError(f"clinic_mastersheet not found: {clinic_path}")
+    if not user_base_path.exists():
+        raise FileNotFoundError(
+            f"clinic_user_base_mastersheet not found: {user_base_path}"
+        )
 
-    clinic_df, cohort_df = load_and_prepare(clinic_path, cohort_path)
+    print("Loading data...")
+    clinic_df = load_clinic_mastersheet(clinic_path)
+    user_df = load_user_base(user_base_path)
+    cohort_index = build_cohort_email_index(user_df)
+
+    print(f"  Clinic mastersheet : {len(clinic_df)} usable rows")
+    print(f"  User base          : {len(user_df)} users across {len(cohort_index)} cohorts")
+    print()
 
     today = pd.Timestamp.now().normalize()
     tomorrow = today + pd.Timedelta(days=1)
 
-    print(f"Today  : {today.strftime('%d/%m/%Y')}")
-    print(f"Tomorrow: {tomorrow.strftime('%d/%m/%Y')}")
+    print(f"Today    : {today.strftime('%d/%m/%Y')}")
+    print(f"Tomorrow : {tomorrow.strftime('%d/%m/%Y')}")
     print()
 
-    base_dir = Path(args.output_dir)
     processed = 0
-
     for run_date in [today, tomorrow]:
         for run_slot in ["morning", "evening"]:
-            out_dir = base_dir / f"{run_date.strftime('%d%m%Y')}_{run_slot}"
-            found = build_priority_files(clinic_df, cohort_df, run_date, run_slot, out_dir)
+            out_dir = base_output / f"{run_date.strftime('%d%m%Y')}_{run_slot}"
+            found = build_priority_files(
+                clinic_df, cohort_index, run_date, run_slot, out_dir
+            )
             if not found:
                 print(
-                    f"  [{run_date.strftime('%d/%m/%Y')} | {run_slot}] No data — skipped."
+                    f"  [{run_date.strftime('%d/%m/%Y')} | {run_slot}] "
+                    "No matching rows -- skipped."
                 )
             else:
                 processed += 1
 
-    print(f"\nDone. {processed}/4 slot(s) had data and were processed.")
+    print()
+    print(f"Done. {processed}/4 slot(s) had data and were processed.")
 
 
 if __name__ == "__main__":
