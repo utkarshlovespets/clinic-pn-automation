@@ -286,8 +286,24 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-dir",
-        required=True,
-        help="Path to a slot output directory (e.g. outputs/19032026_morning).",
+        default=None,
+        help="Path to a specific slot output directory. If omitted, --date and --slot are used.",
+    )
+    parser.add_argument(
+        "--date",
+        default=None,
+        help="Target date in DDMMYYYY format. Default: processes yesterday, today, and tomorrow.",
+    )
+    parser.add_argument(
+        "--slot",
+        choices=["morning", "evening", "both"],
+        default="both",
+        help="Slot(s) to process: morning, evening, or both (default: both).",
+    )
+    parser.add_argument(
+        "--output-base",
+        default="outputs",
+        help="Base output directory when deriving paths from --date/--slot (default: outputs).",
     )
     parser.add_argument(
         "--deeplink-map",
@@ -302,30 +318,46 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    output_dir = Path(args.output_dir)
-    if not output_dir.is_absolute():
-        output_dir = (script_dir / output_dir).resolve()
-
-    if not output_dir.exists():
-        print(f"[ERROR] Output directory not found: {output_dir}")
-        sys.exit(1)
-
     raw_dl = Path(args.deeplink_map)
     deeplink_map_path = raw_dl if raw_dl.is_absolute() else (script_dir / raw_dl).resolve()
     if not deeplink_map_path.exists():
         print(f"[WARNING] Deeplink map not found: {deeplink_map_path} -- deeplink columns will be skipped.")
         deeplink_map_path = None
 
-    print(f"Preparing campaign content for: {output_dir}")
-    if deeplink_map_path:
-        print(f"Deeplink map            : {deeplink_map_path}")
-    print()
+    # Resolve output directories to process.
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+        if not output_dir.is_absolute():
+            output_dir = (script_dir / output_dir).resolve()
+        output_dirs = [output_dir]
+    else:
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        if args.date:
+            try:
+                target = datetime.strptime(args.date, "%d%m%Y")
+            except ValueError:
+                print(f"[ERROR] --date must be in DDMMYYYY format, got: {args.date!r}")
+                sys.exit(1)
+            dates = [target]
+        else:
+            from datetime import timedelta
+            dates = [today - timedelta(days=1), today, today + timedelta(days=1)]
+        slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
+        base = (script_dir / args.output_base).resolve()
+        output_dirs = [base / f"{d.strftime('%d%m%Y')}_{s}" for d in dates for s in slots]
 
-    try:
-        prepare_content(output_dir, deeplink_map_path)
-    except (FileNotFoundError, ValueError) as exc:
-        print(f"[ERROR] {exc}")
-        sys.exit(1)
+    for output_dir in output_dirs:
+        if not output_dir.exists():
+            print(f"[INFO] Skipping {output_dir.name} -- directory not found.")
+            continue
+        print(f"Preparing campaign content for: {output_dir.name}")
+        if deeplink_map_path:
+            print(f"Deeplink map : {deeplink_map_path}")
+        print()
+        try:
+            prepare_content(output_dir, deeplink_map_path)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"[ERROR] {output_dir.name}: {exc}")
 
 
 if __name__ == "__main__":

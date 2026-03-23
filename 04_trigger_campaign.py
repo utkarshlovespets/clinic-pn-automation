@@ -20,6 +20,7 @@ import json
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Tuple
 
@@ -255,8 +256,24 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-dir",
-        required=True,
-        help="Path to a slot output directory (e.g. outputs/19032026_morning).",
+        default=None,
+        help="Path to a specific slot output directory. If omitted, --date and --slot are used.",
+    )
+    parser.add_argument(
+        "--date",
+        default=None,
+        help="Target date in DDMMYYYY format. Default: processes yesterday, today, and tomorrow.",
+    )
+    parser.add_argument(
+        "--slot",
+        choices=["morning", "evening", "both"],
+        default="both",
+        help="Slot(s) to process: morning, evening, or both (default: both).",
+    )
+    parser.add_argument(
+        "--output-base",
+        default="outputs",
+        help="Base output directory when deriving paths from --date/--slot (default: outputs).",
     )
     parser.add_argument(
         "--live",
@@ -316,36 +333,52 @@ def main() -> None:
         "Content-Type": "application/json",
     }
 
-    # -- Resolve output directory ----------------------------------------------
-    output_dir = Path(args.output_dir)
-    if not output_dir.is_absolute():
-        output_dir = (script_dir / output_dir).resolve()
+    # -- Resolve output directories to process --------------------------------
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+        if not output_dir.is_absolute():
+            output_dir = (script_dir / output_dir).resolve()
+        output_dirs = [output_dir]
+    else:
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        if args.date:
+            try:
+                target = datetime.strptime(args.date, "%d%m%Y")
+            except ValueError:
+                print(f"[ERROR] --date must be in DDMMYYYY format, got: {args.date!r}")
+                sys.exit(1)
+            dates = [target]
+        else:
+            dates = [today - timedelta(days=1), today, today + timedelta(days=1)]
+        slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
+        base = (script_dir / args.output_base).resolve()
+        output_dirs = [base / f"{d.strftime('%d%m%Y')}_{s}" for d in dates for s in slots]
 
-    if not output_dir.exists():
-        print(f"[ERROR] Output directory not found: {output_dir}")
-        sys.exit(1)
-
-    print(f"Output directory : {output_dir}")
-    print(f"Campaign ID      : {campaign_id}")
-    print(f"API endpoint     : {url}")
-    print(f"Mode             : {'LIVE' if not dry_run else 'DRY-RUN'}")
-    print(f"Max workers      : {args.max_workers}")
+    print(f"Campaign ID  : {campaign_id}")
+    print(f"API endpoint : {url}")
+    print(f"Mode         : {'LIVE' if not dry_run else 'DRY-RUN'}")
+    print(f"Max workers  : {args.max_workers}")
     print()
 
     # -- Build jobs ------------------------------------------------------------
-    print("Building jobs from enriched CSVs...")
-    try:
-        jobs = build_jobs(output_dir)
-    except (FileNotFoundError, ValueError) as exc:
-        print(f"[ERROR] {exc}")
-        sys.exit(1)
+    all_jobs = []
+    for output_dir in output_dirs:
+        if not output_dir.exists():
+            print(f"[INFO] Skipping {output_dir.name} -- directory not found.")
+            continue
+        print(f"Building jobs from: {output_dir.name}")
+        try:
+            jobs = build_jobs(output_dir)
+            all_jobs.extend(jobs)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"[WARNING] {output_dir.name}: {exc}")
 
-    if not jobs:
+    if not all_jobs:
         print("No jobs to dispatch. Exiting.")
         sys.exit(0)
 
     # -- Dispatch --------------------------------------------------------------
-    run_parallel(jobs, headers, url, campaign_id, dry_run, args.max_workers)
+    run_parallel(all_jobs, headers, url, campaign_id, dry_run, args.max_workers)
 
     print()
     if dry_run:

@@ -13,7 +13,7 @@ Stages:
 
 Usage:
     python 05_run_pipeline.py --slot morning
-    python 05_run_pipeline.py --fetch-mastersheet --slot both --date 20032026
+    python 05_run_pipeline.py --fetch-mastersheet --slot both --date 22032026
     python 05_run_pipeline.py --slot morning --live   # AUTHORISED RUNS ONLY
 """
 

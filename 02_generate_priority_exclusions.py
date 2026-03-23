@@ -11,6 +11,8 @@ Usage:
 """
 
 import argparse
+import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -280,6 +282,17 @@ def main() -> None:
         default="outputs",
         help="Base output directory (default: outputs)",
     )
+    parser.add_argument(
+        "--date",
+        default=None,
+        help="Target date in DDMMYYYY format. Default: processes yesterday, today, and tomorrow.",
+    )
+    parser.add_argument(
+        "--slot",
+        choices=["morning", "evening", "both"],
+        default="both",
+        help="Slot(s) to process: morning, evening, or both (default: both).",
+    )
     args = parser.parse_args()
 
     clinic_path = (script_dir / args.clinic_csv).resolve()
@@ -303,15 +316,31 @@ def main() -> None:
     print()
 
     today = pd.Timestamp.now().normalize()
-    tomorrow = today + pd.Timedelta(days=1)
 
-    print(f"Today    : {today.strftime('%d/%m/%Y')}")
-    print(f"Tomorrow : {tomorrow.strftime('%d/%m/%Y')}")
+    if args.date:
+        try:
+            target = pd.Timestamp(datetime.strptime(args.date, "%d%m%Y"))
+        except ValueError:
+            print(f"[ERROR] --date must be in DDMMYYYY format, got: {args.date!r}")
+            sys.exit(1)
+        run_dates = [target]
+    else:
+        yesterday = today - pd.Timedelta(days=1)
+        tomorrow = today + pd.Timedelta(days=1)
+        run_dates = [yesterday, today, tomorrow]
+
+    run_slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
+
+    print("Dates to process:")
+    for d in run_dates:
+        print(f"  {d.strftime('%d/%m/%Y')}")
+    print(f"Slots    : {', '.join(run_slots)}")
     print()
 
     processed = 0
-    for run_date in [today, tomorrow]:
-        for run_slot in ["morning", "evening"]:
+    total = len(run_dates) * len(run_slots)
+    for run_date in run_dates:
+        for run_slot in run_slots:
             out_dir = base_output / f"{run_date.strftime('%d%m%Y')}_{run_slot}"
             found = build_priority_files(
                 clinic_df, cohort_index, run_date, run_slot, out_dir
@@ -325,7 +354,7 @@ def main() -> None:
                 processed += 1
 
     print()
-    print(f"Done. {processed}/4 slot(s) had data and were processed.")
+    print(f"Done. {processed}/{total} slot(s) had data and were processed.")
 
 
 if __name__ == "__main__":
