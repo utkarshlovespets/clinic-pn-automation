@@ -1,11 +1,11 @@
-Email,Customer Id,First Name,Pet Name
-nainanrao@gmail.com,6365708321006,Naina Rao,Bittu
-joshigaurav934@gmail.com,6837628928238,Gaurav Joshi,Oreo
+email,customer_id,first_name,pet_name
+nainanrao@gmail.com,6365708321006,Naina,Bittu
+joshigaurav934@gmail.com,6837628928238,Gaurav,Oreo
 gautam4all@gmail.com,5482107044013,Gautam,Toro
 kruthikr@gmail.com,6798509474030,Kruthi K,Kit
 drdevika27@gmail.com,5520613408941,Devika Kadam,Leo Surve
 dharavsamani023@gmail.com,6088051654894,Dharav,Browny
-7vickym@gmail.com,6208158925038,vicky,Roxy
+7vickym@gmail.com,6208158925038,Vicky,Roxy
 vnkgsl@gmail.com,5442491515053,Vinayak,Shinobu
 shivamdamoh2013@gmail.com,5926430605550,Shivam,
 sanuneha@hotmail.com,6060009619694,Uma,Kiara
@@ -64,7 +64,7 @@ radha@mattergifts.in,6791187628270,RAdha,Dobby
 nikhil.the.one@gmail.com,6064234561774,Nikhil,Auro
 durdanzz@gmail.com,6080809238766,Zubia,
 srivanione@yahoo.com,5729644708013,Srivani,Luke
-anirudh.kunjal@gmail.com,6710776135918,Anirudh Kunjal,Maximus
+anirudh.kunjal@gmail.com,6710776135918,Anirudh,Maximus
 ankitatharakan248@gmail.com,6786959802606,Ankita,Sage
 sarabhi29@gmail.com,6019536781550,Sarabhi,
 anisharaj30@gmail.com,6840942395630,Anisha,
@@ -79,14 +79,14 @@ sidkvs@gmail.com,6017078460654,Sidharthan Kv,Annie
 arorahiya09@gmail.com,6812083159278,hiya,Eddie
 naveen_vr@hotmail.com,6049127301358,Naveen,Bella
 diwakergomti@gmail.com,5594190774445,Gomti,Oscar
-ajaykumargautam@gmail.com,5707231035565,Ajay Kumar Gautam,Perry
+ajaykumargautam@gmail.com,5707231035565,Ajay,Perry
 natwarchandak@gmail.com,5984856539374,Natwar,Angel
 readingsbyshwethaholla@gmail.com,6716339486958,Somshekar,Chinnamma
 rajat.singh6639@gmail.com,6797828030702,Rajat,LEo
 chandrakantc12@gmail.com,5424502866093,Chandrakanth,Bolt
 narjisali128@gmail.com,5966495088878,Fathima,Sher Khan
-sonamkhedekar.2389@gmail.com,6708887716078,Sonam dilip,ZARA
-milindmoghe@yahoo.com,6755156623598,Milind  Moghe,Oreo
+sonamkhedekar.2389@gmail.com,6708887716078,Sonam,ZARA
+milindmoghe@yahoo.com,6755156623598,Milind,Oreo
 ssamadhiya06@gmail.com,6247795065070,Shivangi,Jamie
 anitab2802@gmail.com,5718861217965,Anita,Sheldon
 vineshpai01@gmail.com,6043262386414,Vinesh,
@@ -98,7 +98,7 @@ heyricha@gmail.com,6806046638318,Richa,Jagger
 ketan.anand943@gmail.com,6217901277422,Ketan,Jacky
 shaikh.shoaib16@gmail.com,6483841122542,Shoaib,Zoon
 sagi.shru@gmail.com,5471296716973,Shruti,Genie
-waghpriyanka59@gmail.com,5738928996525,Priyanka wagh,Cherry
+waghpriyanka59@gmail.com,5738928996525,Priyanka,Cherry
 monicajainmj.25@gmail.com,5594727547053,Monica,
 roshinimuthuraman@gmail.com,6060440912110,Roshini,Chestnut
 ansarifehmina@gmail.com,6060884328686,Fehmina,
