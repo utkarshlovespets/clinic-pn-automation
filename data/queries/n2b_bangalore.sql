@@ -11,12 +11,23 @@ SELECT
         ), 
         'User'
     ) AS first_name,
-    MIN(pet.pet_name) AS pet_name
-FROM retentionTeam.vw_cx_pins p
-LEFT JOIN retentionTeam.vw_cx_email e
-    ON p.customer_id = e.customer_id
+    COALESCE(MIN(pet.pet_name), '') AS pet_name
+FROM retentionTeam.vw_cx_email e
+INNER JOIN retentionTeam.vw_cx_pins p
+    ON e.customer_id = p.customer_id
 LEFT JOIN retentionTeam.cx_pet_profile pet
-    ON p.customer_id = pet.customer_id
+    ON e.customer_id = pet.customer_id
+
+-- Exclusions
+LEFT JOIN healthcare.clinic_orders c
+    ON e.email = c.contact_email
+LEFT JOIN healthcare.ahs_appointments a
+    ON e.email = a.owner_email 
+    AND a.booking_revenue IS NOT NULL
+
 WHERE p.pincode_city = 'Bangalore'
     AND e.email IS NOT NULL
+    AND c.contact_email IS NULL
+    AND a.owner_email IS NULL
+
 GROUP BY e.email;
