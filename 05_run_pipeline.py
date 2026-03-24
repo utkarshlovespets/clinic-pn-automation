@@ -20,6 +20,7 @@ Usage:
 import argparse
 import sys
 from datetime import datetime
+from typing import Optional
 from pathlib import Path
 
 FULL_DISCLAIMER = """
@@ -112,7 +113,7 @@ def run_generate(
 def run_prepare_content(
     script_dir: Path,
     slot_output_dir: Path,
-    deeplink_map_path: Path = None,
+    deeplink_map_path: Optional[Path] = None,
 ) -> None:
     """Load script 03 by file path and call prepare_content() for one slot directory.
 
@@ -128,6 +129,8 @@ def run_prepare_content(
 
     script_path = script_dir / "03_prepare_campaign_content.py"
     spec = importlib.util.spec_from_file_location("prepare_campaign_content", script_path)
+    if spec is None or spec.loader is None:
+        raise ImportError("Could not load module spec or loader")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     mod.prepare_content(slot_output_dir, deeplink_map_path)
@@ -138,7 +141,7 @@ def run_trigger(
     slot_output_dir: str,
     live: bool,
     max_workers: int,
-    cohorts: list = None,
+    cohorts: Optional[list] = None,
 ) -> None:
     """Import and call script 04's main() to trigger campaigns for one slot."""
     import sys as _sys
