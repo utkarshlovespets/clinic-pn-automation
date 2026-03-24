@@ -339,7 +339,7 @@ def main() -> None:
     parser.add_argument(
         "--date",
         default=None,
-        help="Target date in DDMMYYYY format. Default: processes yesterday, today, and tomorrow.",
+        help="Target date in DDMMYYYY format. Default: today only.",
     )
     parser.add_argument(
         "--slot",
@@ -438,7 +438,7 @@ def main() -> None:
                 sys.exit(1)
             dates = [target]
         else:
-            dates = [today - timedelta(days=1), today, today + timedelta(days=1)]
+            dates = [today]
         slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
         base = (script_dir / args.output_base).resolve()
         output_dirs = [base / f"{d.strftime('%d%m%Y')}_{s}" for d in dates for s in slots]

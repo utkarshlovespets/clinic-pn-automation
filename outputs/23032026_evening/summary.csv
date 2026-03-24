@@ -1,7 +1,0 @@
-priority,cohort_name,input_candidates,excluded_by_priority,excluded_by_exclusion_col,exclusion_cohorts,final_count,output_file
-1,Rajaji_Nagar_n2b_15km,2163,0,1214,30_min_delivery; lapser remove,949,01_Rajaji_Nagar_n2b_15km.csv
-2,Clinic_KN_Mar'26,4172,0,1550,30_min_delivery; lapser remove,2623,02_Clinic_KN_Mar_26.csv
-3,Clinic_Birthday_Mar26,5158,293,2315,30_min_delivery; lapser remove,2550,03_Clinic_Birthday_Mar26.csv
-4,Clinic_Dental_N2B_Mar'26,1707,11,354,Appointment Completed; 30_min_delivery; lapser remove,1342,04_Clinic_Dental_N2B_Mar_26.csv
-5,Clinic_Double_pet_parents_Mar26,10071,1176,5439,Appointment Completed; 30_min_delivery; lapser remove,3456,05_Clinic_Double_pet_parents_Mar26.csv
-6,N2B_All_Bangalore,103663,9499,37726,Appointment Completed; 30_min_delivery; lapser remove,56438,06_N2B_All_Bangalore.csv

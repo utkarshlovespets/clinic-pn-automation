@@ -309,7 +309,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Generate per-priority exclusion CSVs from clinic_mastersheet "
-            "and individual cohort CSV files for today and tomorrow, "
+            "and individual cohort CSV files for today's date, "
             "both morning and evening slots."
         )
     )
@@ -340,7 +340,7 @@ def main() -> None:
     parser.add_argument(
         "--date",
         default=None,
-        help="Target date in DDMMYYYY format. Default: processes yesterday, today, and tomorrow.",
+        help="Target date in DDMMYYYY format. Default: today only.",
     )
     parser.add_argument(
         "--slot",
@@ -379,9 +379,7 @@ def main() -> None:
             sys.exit(1)
         run_dates = [target]
     else:
-        yesterday = today - pd.Timedelta(days=1)
-        tomorrow = today + pd.Timedelta(days=1)
-        run_dates = [yesterday, today, tomorrow]
+        run_dates = [today]
 
     run_slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
 
