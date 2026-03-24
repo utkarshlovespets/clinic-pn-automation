@@ -52,6 +52,7 @@ Usage:
 import argparse
 import sys
 from datetime import datetime
+from typing import Optional
 from pathlib import Path
 
 import pandas as pd
@@ -128,7 +129,7 @@ def format_run_date(output_dir: Path) -> str:
 
 # -- Core logic ----------------------------------------------------------------
 
-def prepare_content(output_dir: Path, deeplink_map_path: Path = None) -> None:
+def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) -> None:
     """Enrich all priority CSVs in output_dir with title, body, and deeplink columns.
 
     Args:
