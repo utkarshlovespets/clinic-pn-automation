@@ -1,4 +1,4 @@
-"""Generate per-priority exclusion CSVs from clinic_mastersheet and clinic_user_base_mastersheet.
+"""Generate per-priority exclusion CSVs from clinic_mastersheet and cohort CSV files.
 
 ⚠️  DISCLAIMER: This script only generates intermediate data files.
     No CleverTap API calls are made here. Campaign triggering requires
@@ -7,7 +7,7 @@
 Usage:
     python 02_generate_priority_exclusions.py
     python 02_generate_priority_exclusions.py --clinic-csv data/clinic_mastersheet.csv \\
-        --user-base-csv data/clinic_user_base_mastersheet.csv --output-dir outputs
+        --cohort-map data/deeplink_map.csv --output-dir outputs
 """
 
 import argparse
@@ -21,21 +21,18 @@ import pandas as pd
 from utils import normalize_cohort, sanitize_filename
 
 # -- Feature flags ------------------------------------------------------------
-# Set to True to enable Exclusion-column-based filtering once the column
-# contains real data and the feature is ready for production.
-ENABLE_EXCLUSION_COL: bool = False
+# Exclusion-column-based filtering: exclude members of named cohorts from a
+# campaign row, regardless of priority order.
+ENABLE_EXCLUSION_COL: bool = True
 
 
-# -- Exclusion column helper (written but disabled) ---------------------------
+# -- Exclusion column helper --------------------------------------------------
 
 def parse_exclusion_col(exclusion_str: str) -> List[str]:
     """Parse the Exclusion column value into a list of normalized cohort keys.
 
     The Exclusion column contains comma-separated cohort names whose members
     should be excluded from the current cohort, regardless of priority order.
-
-    NOTE: This function is implemented but intentionally NOT called while
-    ENABLE_EXCLUSION_COL is False.  Enable it by setting the flag above.
 
     Args:
         exclusion_str: Raw cell value from the Exclusion column.
@@ -51,61 +48,95 @@ def parse_exclusion_col(exclusion_str: str) -> List[str]:
 
 # -- Data loaders -------------------------------------------------------------
 
-def load_user_base(path: Path) -> pd.DataFrame:
-    """Load and validate clinic_user_base_mastersheet.csv.
+def load_cohort_index_from_map(
+    cohort_map_path: Path,
+    cohorts_dir: Path,
+) -> Dict[str, List[Tuple[str, str, str]]]:
+    """Build cohort index by loading individual cohort CSV files.
 
-    Expected columns: Email, Cohort Name, First Name, Pet Name
-    'First Name' and 'Pet Name' are optional (blank cells are kept as-is).
+    Reads cohort_map_path (deeplink_map.csv) to discover the mapping:
+        Cohort Name -> cohort_dataset filename in cohorts_dir
 
-    Returns a DataFrame with an additional '_cohort_key' column.
+    For each cohort with a non-blank cohort_dataset, loads the CSV from
+    cohorts_dir and adds its users to the index.
+
+    Expected cohort CSV columns (case-insensitive): email, first_name, pet_name
+
+    Returns:
+        {normalized_cohort_key: [(email, first_name, pet_name), ...]}
     """
-    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if not cohort_map_path.exists():
+        raise FileNotFoundError(f"Cohort map not found: {cohort_map_path}")
 
-    required = {"Email", "Cohort Name"}
-    missing = required - set(df.columns)
+    map_df = pd.read_csv(cohort_map_path, dtype=str, keep_default_na=False)
+
+    required = {"Cohort Name", "cohort_dataset"}
+    missing = required - set(map_df.columns)
     if missing:
         raise ValueError(
-            f"clinic_user_base_mastersheet is missing columns: {sorted(missing)}"
+            f"Cohort map is missing columns: {sorted(missing)}. "
+            "Add a 'cohort_dataset' column to deeplink_map.csv."
         )
 
-    # Ensure optional columns exist (may be absent in early data versions).
-    for col in ("First Name", "Pet Name"):
-        if col not in df.columns:
-            df[col] = ""
-
-    # Normalise emails; drop blanks and clearly invalid entries.
-    df["_email"] = df["Email"].str.strip().str.lower()
-    df = df[
-        df["_email"].ne("")
-        & df["_email"].str.contains("@", regex=False)
-        & df["_email"].ne("#error!")
-    ].copy()
-
-    df["_cohort_key"] = df["Cohort Name"].map(normalize_cohort)
-
-    return df.reset_index(drop=True)
-
-
-def build_cohort_email_index(
-    user_df: pd.DataFrame,
-) -> Dict[str, List[Tuple[str, str, str]]]:
-    """Build a lookup: normalized_cohort_key -> [(email, first_name, pet_name), ...].
-
-    Multi-pet / multi-name users are preserved as separate tuples so that
-    each pet receives its own personalized notification.
-    """
     index: Dict[str, List[Tuple[str, str, str]]] = {}
-    for _, row in user_df.iterrows():
-        key = row["_cohort_key"]
-        if not key:
+    loaded = 0
+
+    for _, row in map_df.iterrows():
+        cohort_name = str(row["Cohort Name"]).strip()
+        dataset_file = str(row["cohort_dataset"]).strip()
+
+        if not cohort_name or not dataset_file:
+            if cohort_name:
+                print(
+                    f"  [WARNING] '{cohort_name}' has no cohort_dataset entry "
+                    "-- will be treated as empty cohort."
+                )
             continue
-        entry = (
-            row["_email"],
-            row.get("First Name", "").strip(),
-            row.get("Pet Name", "").strip(),
-        )
-        index.setdefault(key, []).append(entry)
-    return index
+
+        cohort_key = normalize_cohort(cohort_name)
+        csv_path = cohorts_dir / dataset_file
+
+        if not csv_path.exists():
+            print(
+                f"  [WARNING] Cohort file not found for '{cohort_name}': {csv_path} "
+                "-- skipping."
+            )
+            continue
+
+        df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
+
+        # Normalize column names: lowercase and spaces → underscores.
+        # Handles both "first_name" and "First Name" style headers.
+        df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+        if "email" not in df.columns:
+            print(
+                f"  [WARNING] '{dataset_file}' has no 'email' column -- skipping."
+            )
+            continue
+
+        for col in ("first_name", "pet_name"):
+            if col not in df.columns:
+                df[col] = ""
+
+        entries = []
+        for _, user_row in df.iterrows():
+            email = str(user_row["email"]).strip().lower()
+            if not email or "@" not in email or email == "#error!":
+                continue
+            # Take only the first word of first_name so "Sneha Das" → "Sneha".
+            raw_first = str(user_row.get("first_name", "")).strip()
+            first_name = raw_first.split()[0] if raw_first else ""
+            entries.append((
+                email,
+                first_name,
+                str(user_row.get("pet_name", "")).strip(),
+            ))
+
+        index[cohort_key] = entries
+        loaded += 1
+
+    return index, loaded
 
 
 def load_clinic_mastersheet(path: Path) -> pd.DataFrame:
@@ -158,6 +189,10 @@ def build_priority_files(
     date and slot.  Users targeted by a higher-priority cohort are excluded
     from all lower-priority cohorts.
 
+    If ENABLE_EXCLUSION_COL is True, the Exclusion column is also applied:
+    members of named cohorts are excluded from that campaign row regardless
+    of priority.
+
     Returns True if at least one row was found and files were written.
     """
     run_df = clinic_df[
@@ -186,17 +221,25 @@ def build_priority_files(
         candidate_tuples = cohort_index.get(cohort_key, [])
         input_candidates = len({t[0] for t in candidate_tuples})  # unique emails
 
-        # -- Exclusion column (disabled) -----------------------------------
-        excluded_by_exclusion_col = 0
+        # -- Exclusion column -----------------------------------------------
+        exclusion_cohort_names: List[str] = []
         if ENABLE_EXCLUSION_COL:
-            exclusion_keys = parse_exclusion_col(row.get("Exclusion", ""))
+            raw_exclusion = str(row.get("Exclusion", "")).strip()
+            exclusion_keys = parse_exclusion_col(raw_exclusion)
             exclusion_emails: set = set()
             for ex_key in exclusion_keys:
                 for t in cohort_index.get(ex_key, []):
                     exclusion_emails.add(t[0])
+            # Preserve the original names from the Exclusion cell for reporting.
+            if raw_exclusion:
+                exclusion_cohort_names = [
+                    p.strip() for p in raw_exclusion.split(",") if p.strip()
+                ]
         else:
             exclusion_emails = set()
-        # -----------------------------------------------------------------
+        # -------------------------------------------------------------------
+
+        candidate_emails = {t[0] for t in candidate_tuples}
 
         # Apply priority exclusion (and optional column exclusion).
         final_tuples = [
@@ -204,18 +247,23 @@ def build_priority_files(
             for t in candidate_tuples
             if t[0] not in targeted_emails and t[0] not in exclusion_emails
         ]
+        # Count exclusions without double-counting users excluded by both filters.
+        # Users in both sets are attributed to priority exclusion.
+        col_only_excl = (candidate_emails & exclusion_emails) - targeted_emails
+        priority_excl = candidate_emails & targeted_emails
 
-        excluded_by_priority = input_candidates - len(
-            {t[0] for t in final_tuples}
-        ) - excluded_by_exclusion_col
+        excluded_by_exclusion_col = len(col_only_excl)
+        excluded_by_priority = len(priority_excl)
 
         # Update targeted set (by email, not by tuple -- one email = one slot).
         targeted_emails.update(t[0] for t in final_tuples)
 
         # Write per-priority CSV: Email, First Name, Pet Name
+        # Always include the header even when final_tuples is empty.
         out_name = f"{priority:02d}_{sanitize_filename(cohort_name)}.csv"
         pd.DataFrame(
-            [{"Email": t[0], "First Name": t[1], "Pet Name": t[2]} for t in final_tuples]
+            [{"Email": t[0], "First Name": t[1], "Pet Name": t[2]} for t in final_tuples],
+            columns=["Email", "First Name", "Pet Name"],
         ).to_csv(output_dir / out_name, index=False)
 
         summary_rows.append(
@@ -225,6 +273,7 @@ def build_priority_files(
                 "input_candidates": input_candidates,
                 "excluded_by_priority": excluded_by_priority,
                 "excluded_by_exclusion_col": excluded_by_exclusion_col,
+                "exclusion_cohorts": "; ".join(exclusion_cohort_names),
                 "final_count": len(final_tuples),
                 "output_file": out_name,
             }
@@ -260,7 +309,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Generate per-priority exclusion CSVs from clinic_mastersheet "
-            "and clinic_user_base_mastersheet for today and tomorrow, "
+            "and individual cohort CSV files for today and tomorrow, "
             "both morning and evening slots."
         )
     )
@@ -270,12 +319,18 @@ def main() -> None:
         help="Path to clinic_mastersheet.csv (default: data/clinic_mastersheet.csv)",
     )
     parser.add_argument(
-        "--user-base-csv",
-        default="data/clinic_user_base_mastersheet.csv",
+        "--cohort-map",
+        default="data/deeplink_map.csv",
         help=(
-            "Path to clinic_user_base_mastersheet.csv "
-            "(default: data/clinic_user_base_mastersheet.csv)"
+            "Path to deeplink_map.csv with a 'cohort_dataset' column mapping each "
+            "cohort to its CSV file in data/cohorts/ "
+            "(default: data/deeplink_map.csv)"
         ),
+    )
+    parser.add_argument(
+        "--cohorts-dir",
+        default="data/cohorts",
+        help="Directory containing individual cohort CSV files (default: data/cohorts)",
     )
     parser.add_argument(
         "--output-dir",
@@ -296,23 +351,22 @@ def main() -> None:
     args = parser.parse_args()
 
     clinic_path = (script_dir / args.clinic_csv).resolve()
-    user_base_path = (script_dir / args.user_base_csv).resolve()
+    cohort_map_path = (script_dir / args.cohort_map).resolve()
+    cohorts_dir = (script_dir / args.cohorts_dir).resolve()
     base_output = (script_dir / args.output_dir).resolve()
 
     if not clinic_path.exists():
         raise FileNotFoundError(f"clinic_mastersheet not found: {clinic_path}")
-    if not user_base_path.exists():
-        raise FileNotFoundError(
-            f"clinic_user_base_mastersheet not found: {user_base_path}"
-        )
+    if not cohort_map_path.exists():
+        raise FileNotFoundError(f"Cohort map not found: {cohort_map_path}")
 
     print("Loading data...")
     clinic_df = load_clinic_mastersheet(clinic_path)
-    user_df = load_user_base(user_base_path)
-    cohort_index = build_cohort_email_index(user_df)
+    cohort_index, loaded_count = load_cohort_index_from_map(cohort_map_path, cohorts_dir)
 
+    total_users = sum(len(v) for v in cohort_index.values())
     print(f"  Clinic mastersheet : {len(clinic_df)} usable rows")
-    print(f"  User base          : {len(user_df)} users across {len(cohort_index)} cohorts")
+    print(f"  Cohort files loaded: {loaded_count} file(s), {total_users} users across {len(cohort_index)} cohort(s)")
     print()
 
     today = pd.Timestamp.now().normalize()

@@ -74,14 +74,21 @@ def resolve_template(template: str, first_name: str, pet_name: str) -> str:
     if not template:
         return template
 
+    def _cap(value: str, at_start: bool) -> str:
+        """Capitalize the first letter if the value opens the sentence."""
+        if not value or not at_start:
+            return value
+        return value[0].upper() + value[1:]
+
     def _replace(match: re.Match) -> str:
+        at_start = match.start() == 0
         token = match.group(1)
         if _PET_WORDS.match(token):
             if token.lower().endswith("'s"):
-                return (pet_name + "'s") if pet_name else "your pet's"
-            return pet_name if pet_name else "your pet"
+                return (_cap(pet_name, at_start) + "'s") if pet_name else _cap("your pet's", at_start)
+            return _cap(pet_name, at_start) if pet_name else _cap("your pet", at_start)
         if _PARENT_WORDS.match(token):
-            return first_name if first_name else "pet parent"
+            return _cap(first_name, at_start) if first_name else _cap("pet parent", at_start)
         return match.group(0)  # unknown token -- leave as-is
 
     return _PLACEHOLDER_RE.sub(_replace, template)

@@ -1,7 +1,7 @@
-priority,cohort_name,input_candidates,excluded_by_priority,excluded_by_exclusion_col,final_count,output_file
-1,Rajaji_Nagar_n2b_15km,11851,0,0,11851,01_Rajaji_Nagar_n2b_15km.csv
-2,Clinic_KN_Mar'26,8099,25,0,8074,02_Clinic_KN_Mar_26.csv
-3,Clinic_Birthday_Mar26,5169,833,0,4336,03_Clinic_Birthday_Mar26.csv
-4,Clinic_Dental_N2B_Mar'26,634,119,0,515,04_Clinic_Dental_N2B_Mar_26.csv
-5,Clinic_Double_pet_parents_Mar26,8792,2566,0,6226,05_Clinic_Double_pet_parents_Mar26.csv
-6,N2B_All_Bangalore,9476,1648,0,7828,06_N2B_All_Bangalore.csv
+priority,cohort_name,input_candidates,excluded_by_priority,excluded_by_exclusion_col,exclusion_cohorts,final_count,output_file
+1,Rajaji_Nagar_n2b_15km,2163,0,52,lapser remove,2111,01_Rajaji_Nagar_n2b_15km.csv
+2,Clinic_KN_Mar'26,4172,0,165,lapser remove,4008,02_Clinic_KN_Mar_26.csv
+3,Clinic_Birthday_Mar26,5158,510,150,lapser remove,4498,03_Clinic_Birthday_Mar26.csv
+4,Clinic_Dental_N2B_Mar'26,1707,46,61,Appointment Completed; lapser remove,1600,04_Clinic_Dental_N2B_Mar_26.csv
+5,Clinic_Double_pet_parents_Mar26,10071,2323,1272,Appointment Completed; lapser remove,6476,05_Clinic_Double_pet_parents_Mar26.csv
+6,N2B_All_Bangalore,103663,17123,6213,Appointment Completed; lapser remove,80327,06_N2B_All_Bangalore.csv

@@ -11,18 +11,23 @@ each priority CSV contains title and body columns.
 Usage (dry-run, safe default):
     python 04_trigger_campaign.py --output-dir outputs/19032026_morning
 
+Usage (dry-run, specific cohorts only):
+    python 04_trigger_campaign.py --output-dir outputs/19032026_morning --cohorts "N2B_All_Bangalore" "Clinic_KN_Mar26"
+
 Usage (live -- only when authorised):
     python 04_trigger_campaign.py --output-dir outputs/19032026_morning --live
 """
 
 import argparse
+import csv
 import json
 import sys
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Set, Tuple
 
 import pandas as pd
 import requests
@@ -31,7 +36,7 @@ from dotenv import dotenv_values
 # -- Constants -----------------------------------------------------------------
 
 BATCH_SIZE = 1000
-MAX_WORKERS_DEFAULT = 10
+MAX_WORKERS_DEFAULT = 30
 LIVE_COUNTDOWN_SECONDS = 5
 
 DISCLAIMER_DRY_RUN = """
@@ -55,20 +60,25 @@ DISCLAIMER_LIVE = """
 
 def build_jobs(
     output_dir: Path,
-) -> List[Tuple[str, int, List[str], str, str]]:
+    cohorts: Optional[Set[str]] = None,
+) -> List[Tuple[str, int, List[str], str, str, str, str, str]]:
     """Build the full list of API call jobs from an output directory.
 
     Reads title and body directly from enriched priority CSVs (produced by
     03_prepare_campaign_content.py).  For each priority CSV:
       1. Loads Email, title, body.
-      2. Groups users by identical (title, body) content.
-      3. Chunks each group into batches of BATCH_SIZE.
+      2. Optionally filters by cohort name (if cohorts set is provided).
+      3. Groups users by identical (title, body) content.
+      4. Chunks each group into batches of BATCH_SIZE.
 
-    The cohort name for labels is derived from campaign_meta.csv.
+    Args:
+        output_dir: Directory containing priority CSVs and campaign_meta.csv.
+        cohorts:    Optional set of cohort names to include. If None, all
+                    cohorts are processed.
 
     Returns:
-        List of (cohort_name, priority, batch_emails, copy1, copy2) tuples
-        in priority order.
+        List of (cohort_name, priority, batch_emails, copy1, copy2,
+                 android_dl, ios_dl, output_dir_name) tuples in priority order.
 
     Raises:
         FileNotFoundError: If campaign_meta.csv is missing.
@@ -102,7 +112,8 @@ def build_jobs(
         print("  [WARNING] No priority CSV files found in output directory.")
         return []
 
-    all_jobs: List[Tuple[str, int, List[str], str, str, str, str]] = []
+    output_dir_name = output_dir.name
+    all_jobs: List[Tuple[str, int, List[str], str, str, str, str, str]] = []
 
     for csv_path in csv_files:
         try:
@@ -113,13 +124,18 @@ def build_jobs(
 
         cohort_name = cohort_name_lookup.get(priority, csv_path.stem)
 
+        # Apply cohort filter if specified.
+        if cohorts is not None and cohort_name not in cohorts:
+            print(f"  [INFO] {csv_path.name}: cohort '{cohort_name}' not in filter -- skipped.")
+            continue
+
         users_df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
 
         if users_df.empty or "Email" not in users_df.columns:
             print(f"  [INFO] {csv_path.name}: 0 users -- skipped.")
             continue
 
-        # Require title / body columns (populated by script 02b).
+        # Require title / body columns (populated by script 03).
         for col in ("title", "body"):
             if col not in users_df.columns:
                 print(
@@ -148,7 +164,10 @@ def build_jobs(
             for (copy1, copy2), emails in groups.items():
                 for i in range(0, len(emails), BATCH_SIZE):
                     batch = emails[i : i + BATCH_SIZE]
-                    all_jobs.append((cohort_name, priority, batch, copy1, copy2, android_dl, ios_dl))
+                    all_jobs.append((
+                        cohort_name, priority, batch, copy1, copy2,
+                        android_dl, ios_dl, output_dir_name,
+                    ))
 
     return all_jobs
 
@@ -156,7 +175,7 @@ def build_jobs(
 # -- API call ------------------------------------------------------------------
 
 def send_request(
-    job: Tuple[str, int, List[str], str, str, str, str],
+    job: Tuple[str, int, List[str], str, str, str, str, str],
     headers: dict,
     url: str,
     campaign_id: int,
@@ -166,7 +185,7 @@ def send_request(
 
     Args:
         job:         (cohort_name, priority, batch_emails, copy1, copy2,
-                      android_deeplink, ios_deeplink)
+                      android_deeplink, ios_deeplink, output_dir_name)
         headers:     CleverTap auth headers.
         url:         External Trigger API endpoint.
         campaign_id: Integer campaign ID from .env.
@@ -175,7 +194,7 @@ def send_request(
     Returns:
         Human-readable result string.
     """
-    cohort_name, priority, emails, copy1, copy2, android_dl, ios_dl = job
+    cohort_name, priority, emails, copy1, copy2, android_dl, ios_dl, _ = job
 
     ext_trigger = {"title": copy1, "body": copy2}
     if android_dl:
@@ -201,16 +220,22 @@ def send_request(
         print("  " + json.dumps(preview, ensure_ascii=True, indent=4).replace("\n", "\n  "))
         return f"{label} -> [DRY-RUN] skipped"
 
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("status") == "success":
-                return f"{label} -> OK | {data.get('message', '')}"
-            return f"{label} -> CleverTap error | {data.get('error', response.text)}"
-        return f"{label} -> HTTP {response.status_code} | {response.text[:200]}"
-    except requests.exceptions.RequestException as exc:
-        return f"{label} -> Request error | {exc}"
+    max_attempts = 3
+    last_error = ""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "success":
+                    return f"{label} -> OK | {data.get('message', '')}"
+                return f"{label} -> CleverTap error | {data.get('error', response.text)}"
+            return f"{label} -> HTTP {response.status_code} | {response.text[:200]}"
+        except requests.exceptions.RequestException as exc:
+            last_error = str(exc)
+            if attempt < max_attempts:
+                time.sleep(2 * attempt)  # 2s after attempt 1, 4s after attempt 2
+    return f"{label} -> ERROR (failed after {max_attempts} attempts) | {last_error}"
 
 
 # -- Parallel dispatcher -------------------------------------------------------
@@ -222,8 +247,14 @@ def run_parallel(
     campaign_id: int,
     dry_run: bool,
     max_workers: int = MAX_WORKERS_DEFAULT,
+    log_dir: Optional[Path] = None,
 ) -> None:
-    """Dispatch all jobs in parallel using ThreadPoolExecutor."""
+    """Dispatch all jobs in parallel using ThreadPoolExecutor.
+
+    After dispatch, writes a per-slot-directory CSV dispatch log to log_dir
+    (if provided).  Log columns: email, cohort_name, priority, title, body,
+    dry_run, timestamp, status.
+    """
     if not jobs:
         print("  No jobs to process.")
         return
@@ -232,13 +263,59 @@ def run_parallel(
     if dry_run:
         print("(DRY-RUN: payloads printed below, no HTTP requests)\n")
 
+    log_rows: List[dict] = []
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(send_request, job, headers, url, campaign_id, dry_run): job
             for job in jobs
         }
         for future in as_completed(futures):
-            print(future.result())
+            job = futures[future]
+            result_str = future.result()
+            print(result_str)
+
+            cohort_name, priority, emails, copy1, copy2, _, _, output_dir_name = job
+
+            if dry_run:
+                status = "DRY-RUN"
+            elif "-> OK" in result_str:
+                status = "OK"
+            else:
+                status = "ERROR"
+
+            ts = datetime.now().isoformat(timespec="seconds")
+            for email in emails:
+                log_rows.append({
+                    "email": email,
+                    "cohort_name": cohort_name,
+                    "priority": priority,
+                    "title": copy1[:120],
+                    "body": copy2[:120],
+                    "dry_run": dry_run,
+                    "timestamp": ts,
+                    "status": status,
+                    "_output_dir": output_dir_name,
+                })
+
+    # Write one log CSV per output directory.
+    if log_rows and log_dir is not None:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        by_dir: dict = defaultdict(list)
+        for row in log_rows:
+            by_dir[row["_output_dir"]].append(row)
+
+        log_fields = ["email", "cohort_name", "priority", "title", "body",
+                      "dry_run", "timestamp", "status"]
+        for dir_name, rows in by_dir.items():
+            log_path = log_dir / f"{dir_name}_dispatch_log.csv"
+            file_exists = log_path.exists()
+            with open(log_path, "a", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=log_fields, extrasaction="ignore")
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerows(rows)
+            print(f"\n  [LOG] Dispatch log written: {log_path}")
 
 
 # -- Entry point ---------------------------------------------------------------
@@ -274,6 +351,16 @@ def main() -> None:
         "--output-base",
         default="outputs",
         help="Base output directory when deriving paths from --date/--slot (default: outputs).",
+    )
+    parser.add_argument(
+        "--cohorts",
+        nargs="+",
+        default=None,
+        metavar="COHORT",
+        help=(
+            "One or more cohort names to process (default: all). "
+            "Example: --cohorts \"N2B_All_Bangalore\" \"Clinic_KN_Mar26\""
+        ),
     )
     parser.add_argument(
         "--live",
@@ -333,6 +420,8 @@ def main() -> None:
         "Content-Type": "application/json",
     }
 
+    cohorts_filter: Optional[Set[str]] = set(args.cohorts) if args.cohorts else None
+
     # -- Resolve output directories to process --------------------------------
     if args.output_dir:
         output_dir = Path(args.output_dir)
@@ -354,10 +443,15 @@ def main() -> None:
         base = (script_dir / args.output_base).resolve()
         output_dirs = [base / f"{d.strftime('%d%m%Y')}_{s}" for d in dates for s in slots]
 
+    log_dir = (script_dir / "outputs" / "log").resolve()
+
     print(f"Campaign ID  : {campaign_id}")
     print(f"API endpoint : {url}")
     print(f"Mode         : {'LIVE' if not dry_run else 'DRY-RUN'}")
     print(f"Max workers  : {args.max_workers}")
+    if cohorts_filter:
+        print(f"Cohort filter: {', '.join(sorted(cohorts_filter))}")
+    print(f"Log dir      : {log_dir}")
     print()
 
     # -- Build jobs ------------------------------------------------------------
@@ -368,7 +462,7 @@ def main() -> None:
             continue
         print(f"Building jobs from: {output_dir.name}")
         try:
-            jobs = build_jobs(output_dir)
+            jobs = build_jobs(output_dir, cohorts_filter)
             all_jobs.extend(jobs)
         except (FileNotFoundError, ValueError) as exc:
             print(f"[WARNING] {output_dir.name}: {exc}")
@@ -378,7 +472,7 @@ def main() -> None:
         sys.exit(0)
 
     # -- Dispatch --------------------------------------------------------------
-    run_parallel(all_jobs, headers, url, campaign_id, dry_run, args.max_workers)
+    run_parallel(all_jobs, headers, url, campaign_id, dry_run, args.max_workers, log_dir)
 
     print()
     if dry_run:

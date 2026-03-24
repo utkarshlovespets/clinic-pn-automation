@@ -82,7 +82,7 @@ def run_fetch(script_dir: Path) -> None:
 def run_generate(
     script_dir: Path,
     clinic_csv: str,
-    user_base_csv: str,
+    cohort_map: str,
     output_dir: str,
 ) -> None:
     """Import and call script 02's main() to generate priority exclusion CSVs."""
@@ -97,7 +97,7 @@ def run_generate(
     _sys.argv = [
         "02_generate_priority_exclusions.py",
         "--clinic-csv", clinic_csv,
-        "--user-base-csv", user_base_csv,
+        "--cohort-map", cohort_map,
         "--output-dir", output_dir,
     ]
     try:
@@ -138,16 +138,18 @@ def run_trigger(
     slot_output_dir: str,
     live: bool,
     max_workers: int,
+    cohorts: list = None,
 ) -> None:
-    """Import and call script 03's main() to trigger campaigns for one slot."""
+    """Import and call script 04's main() to trigger campaigns for one slot."""
     import sys as _sys
     original_argv = _sys.argv[:]
     live_flag = ["--live"] if live else []
+    cohort_flags = (["--cohorts"] + cohorts) if cohorts else []
     _sys.argv = [
         "04_trigger_campaign.py",
         "--output-dir", slot_output_dir,
         "--max-workers", str(max_workers),
-    ] + live_flag
+    ] + live_flag + cohort_flags
     try:
         sys.path.insert(0, str(script_dir))
         import importlib
@@ -209,11 +211,12 @@ def main() -> None:
         help="Path to clinic_mastersheet.csv (default: data/clinic_mastersheet.csv).",
     )
     parser.add_argument(
-        "--user-base-csv",
-        default="data/clinic_user_base_mastersheet.csv",
+        "--cohort-map",
+        default="data/deeplink_map.csv",
         help=(
-            "Path to clinic_user_base_mastersheet.csv "
-            "(default: data/clinic_user_base_mastersheet.csv)."
+            "Path to deeplink_map.csv with a 'cohort_dataset' column mapping each "
+            "cohort to its CSV file in data/cohorts/ "
+            "(default: data/deeplink_map.csv)."
         ),
     )
     parser.add_argument(
@@ -236,6 +239,16 @@ def main() -> None:
             "(default: data/deeplink_map.csv)"
         ),
     )
+    parser.add_argument(
+        "--cohorts",
+        nargs="+",
+        default=None,
+        metavar="COHORT",
+        help=(
+            "One or more cohort names to trigger in stage 4 (default: all). "
+            "Example: --cohorts \"N2B_All_Bangalore\" \"Clinic_KN_Mar26\""
+        ),
+    )
     args = parser.parse_args()
 
     print_header(live=args.live, fetch=args.fetch_mastersheet)
@@ -248,7 +261,7 @@ def main() -> None:
     run_generate(
         script_dir,
         clinic_csv=args.clinic_csv,
-        user_base_csv=args.user_base_csv,
+        cohort_map=args.cohort_map,
         output_dir=args.output_dir,
     )
 
@@ -288,6 +301,7 @@ def main() -> None:
             slot_output_dir=str(slot_dir_full),
             live=args.live,
             max_workers=args.max_workers,
+            cohorts=args.cohorts,
         )
 
     print()
