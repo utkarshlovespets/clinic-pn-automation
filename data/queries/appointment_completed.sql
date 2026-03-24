@@ -1,5 +1,5 @@
 SELECT 
-    e.email,
+    base.email,
     COALESCE(
         TRIM(
             CASE 
@@ -12,12 +12,24 @@ SELECT
         'User'
     ) AS first_name,
     COALESCE(MIN(pet.pet_name), '') AS pet_name
-FROM retentionTeam.vw_cx_email e
-INNER JOIN retentionTeam.vw_cx_pins p
-    ON e.customer_id = p.customer_id
+FROM (
+    -- Combine both datasets
+    SELECT contact_email AS email 
+    FROM healthcare.clinic_orders 
+    WHERE contact_email IS NOT NULL
+
+    UNION   -- removes duplicates automatically
+
+    SELECT owner_email AS email 
+    FROM healthcare.ahs_appointments 
+    WHERE booking_revenue IS NOT NULL
+) base
+
+-- Join to get customer details
+LEFT JOIN retentionTeam.vw_cx_email e
+    ON base.email = e.email
+
 LEFT JOIN retentionTeam.cx_pet_profile pet
     ON e.customer_id = pet.customer_id
-WHERE p.pincode IN (
-    '560043','560005','560033','560113','560045','560084'
-)
-GROUP BY e.email;
+
+GROUP BY base.email;

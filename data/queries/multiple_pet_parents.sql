@@ -1,5 +1,4 @@
-SELECT 
-    e.customer_id,
+SELECT
     e.email,
     COALESCE(
         TRIM(

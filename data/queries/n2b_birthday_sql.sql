@@ -11,13 +11,28 @@ SELECT
         ), 
         'User'
     ) AS first_name,
-    COALESCE(MIN(pet.pet_name), '') AS pet_name
+
+    COALESCE(MIN(pet.pet_name), '') AS pet_name,
+    MIN(pet.dob_month) AS dob_month
+
 FROM retentionTeam.vw_cx_email e
-INNER JOIN retentionTeam.vw_cx_pins p
-    ON e.customer_id = p.customer_id
-LEFT JOIN retentionTeam.cx_pet_profile pet
+
+-- 🔥 Filter pets FIRST (current month)
+INNER JOIN (
+    SELECT customer_id, pet_name, dob_month
+    FROM retentionTeam.cx_pet_profile
+    WHERE LOWER(dob_month) = LOWER(DATE_FORMAT(CURDATE(), '%M'))
+) pet
     ON e.customer_id = pet.customer_id
-WHERE p.pincode IN (
-    '560043','560005','560033','560113','560045','560084'
-)
+
+-- 🔥 Filter Bangalore users
+INNER JOIN (
+    SELECT DISTINCT customer_id
+    FROM retentionTeam.vw_cx_pins
+    WHERE pincode_city = 'Bangalore'
+) p
+    ON e.customer_id = p.customer_id
+
+WHERE e.email IS NOT NULL
+
 GROUP BY e.email;

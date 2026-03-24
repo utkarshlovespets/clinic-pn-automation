@@ -1,6 +1,5 @@
 SELECT 
-    e.email, 
-    e.customer_id,
+    e.email,
     COALESCE(
         TRIM(
             CASE 
@@ -12,14 +11,14 @@ SELECT
         ), 
         'User'
     ) AS first_name,
-    MIN(pet.pet_name) AS pet_name
+    COALESCE(MIN(pet.pet_name), '') AS pet_name
 FROM retentionTeam.vw_cx_email e
 INNER JOIN retentionTeam.vw_cx_pins p
     ON e.customer_id = p.customer_id
-INNER JOIN retentionTeam.cx_pet_profile pet
+LEFT JOIN retentionTeam.cx_pet_profile pet
     ON e.customer_id = pet.customer_id
 WHERE p.pincode IN (
     '560055','560010','560079','560003','560021',
     '560096','560023','560080','560086','560020','560044'
 )
-GROUP BY e.email, e.customer_id;
+GROUP BY e.email;
