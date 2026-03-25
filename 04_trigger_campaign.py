@@ -27,6 +27,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
+from threading import Lock
 from typing import List, Optional, Set, Tuple
 
 import pandas as pd
@@ -180,16 +181,21 @@ def send_request(
     url: str,
     campaign_id: int,
     dry_run: bool,
+    previewed_cohorts: Optional[Set[str]] = None,
+    previewed_lock: Optional[Lock] = None,
 ) -> str:
     """Send (or mock-send) a single batch API call to CleverTap.
 
     Args:
-        job:         (cohort_name, priority, batch_emails, copy1, copy2,
-                      android_deeplink, ios_deeplink, output_dir_name)
-        headers:     CleverTap auth headers.
-        url:         External Trigger API endpoint.
-        campaign_id: Integer campaign ID from .env.
-        dry_run:     If True, print payload instead of making HTTP request.
+        job:               (cohort_name, priority, batch_emails, copy1, copy2,
+                            android_deeplink, ios_deeplink, output_dir_name)
+        headers:           CleverTap auth headers.
+        url:               External Trigger API endpoint.
+        campaign_id:       Integer campaign ID from .env.
+        dry_run:           If True, print payload instead of making HTTP request.
+        previewed_cohorts: Shared set of cohort names whose payload has already
+                           been printed (one preview per cohort in dry-run).
+        previewed_lock:    Lock protecting previewed_cohorts.
 
     Returns:
         Human-readable result string.
@@ -204,20 +210,33 @@ def send_request(
 
     payload = {
         "to": {"email": emails},
-        "campaign_id_list": [campaign_id],
+        "campaign_id": campaign_id,
         "ExternalTrigger": ext_trigger,
     }
 
     label = f"[P{priority:02d} | {cohort_name} | {len(emails)} email(s)]"
 
     if dry_run:
-        preview_emails = emails[:3]
-        if len(emails) > 3:
-            preview_emails = preview_emails + [f"+{len(emails) - 3} more"]
-        preview = dict(payload)
-        preview["to"] = {"email": preview_emails}
-        print(f"\n  {label} DRY-RUN payload:")
-        print("  " + json.dumps(preview, ensure_ascii=True, indent=4).replace("\n", "\n  "))
+        # Print the full payload only once per cohort; subsequent batches just
+        # show a compact summary line so the terminal stays readable.
+        first_preview = False
+        if previewed_cohorts is not None and previewed_lock is not None:
+            with previewed_lock:
+                if cohort_name not in previewed_cohorts:
+                    previewed_cohorts.add(cohort_name)
+                    first_preview = True
+        else:
+            first_preview = True  # fallback: always print
+
+        if first_preview:
+            preview_emails = emails[:3]
+            if len(emails) > 3:
+                preview_emails = preview_emails + [f"+{len(emails) - 3} more"]
+            preview = dict(payload)
+            preview["to"] = {"email": preview_emails}
+            print(f"\n  {label} DRY-RUN payload:")
+            print("  " + json.dumps(preview, ensure_ascii=True, indent=4).replace("\n", "\n  "))
+        # Additional batches are silent here; run_parallel prints a tally at the end.
         return f"{label} -> [DRY-RUN] skipped"
 
     max_attempts = 3
@@ -265,15 +284,35 @@ def run_parallel(
 
     log_rows: List[dict] = []
 
+    # Shared state so each cohort's payload / result is printed only once in dry-run.
+    previewed_cohorts: Set[str] = set()
+    previewed_lock = Lock()
+    # Track suppressed result lines per cohort (dry-run only).
+    printed_result_cohorts: Set[str] = set()
+    suppressed_counts: dict = defaultdict(int)
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(send_request, job, headers, url, campaign_id, dry_run): job
+            executor.submit(
+                send_request, job, headers, url, campaign_id, dry_run,
+                previewed_cohorts, previewed_lock,
+            ): job
             for job in jobs
         }
         for future in as_completed(futures):
             job = futures[future]
+            cohort_name = job[0]
             result_str = future.result()
-            print(result_str)
+
+            if dry_run:
+                # Only print one result line per cohort; tally the rest silently.
+                if cohort_name not in printed_result_cohorts:
+                    printed_result_cohorts.add(cohort_name)
+                    print(result_str)
+                else:
+                    suppressed_counts[cohort_name] += 1
+            else:
+                print(result_str)
 
             cohort_name, priority, emails, copy1, copy2, _, _, output_dir_name = job
 
@@ -298,7 +337,14 @@ def run_parallel(
                     "_output_dir": output_dir_name,
                 })
 
+    # After all futures: print a compact tally of suppressed dry-run batches.
+    if dry_run and suppressed_counts:
+        print()
+        for cname, count in sorted(suppressed_counts.items()):
+            print(f"  [DRY-RUN] {cname}: +{count} additional batch(es) suppressed (same payload/result)")
+
     # Write one log CSV per output directory.
+
     if log_rows and log_dir is not None:
         log_dir.mkdir(parents=True, exist_ok=True)
         by_dir: dict = defaultdict(list)
@@ -413,7 +459,7 @@ def main() -> None:
         print(f"[ERROR] CLEVERTAP_CAMPAIGN_ID must be an integer, got: {campaign_id_str!r}")
         sys.exit(1)
 
-    url = f"https://{region}.api.clevertap.com/2/send/externaltrigger.json"
+    url = f"https://{region}.api.clevertap.com/1/send/externaltrigger.json"
     headers = {
         "X-CleverTap-Account-Id": account_id,
         "X-CleverTap-Passcode": passcode,

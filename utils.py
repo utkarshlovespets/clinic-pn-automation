@@ -29,7 +29,7 @@ def normalize_cohort(name: str) -> str:
     Examples:
         "Clinic_Gut_N2B_Mar'26"  -> "clinicgutn2bmar26"
         "N2B_All_Bangalore"      -> "n2ballbangalore"
-        "Clinic_Birthday_Mar26"  -> "clinicbirthdaymar26"
+        "Clinic_Birthday"  -> "clinicbirthday"
     """
     text = str(name).strip()
     # Remove straight and curly apostrophes before lowercasing.
@@ -45,7 +45,7 @@ def sanitize_filename(name: str) -> str:
     with a single underscore.
 
     Examples:
-        "Clinic_Birthday_Mar26"   -> "Clinic_Birthday_Mar26"
+        "Clinic_Birthday"   -> "Clinic_Birthday"
         "N2B- SUPERCASH500"       -> "N2B-_SUPERCASH500"
         "Clinic_Gut_N2B_Mar'26"   -> "Clinic_Gut_N2B_Mar_26"
     """
