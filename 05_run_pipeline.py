@@ -6,14 +6,14 @@
     and approved by the team.
 
 Stages:
-    [Optional] 01 -- Fetch clinic_mastersheet from Google Sheets
-              02 -- Generate priority exclusion CSVs
-              03 -- Resolve title / body per user into enriched CSVs
-              04 -- Trigger CleverTap campaigns (dry-run by default)
+    01 -- Fetch clinic_mastersheet from Google Sheets
+    02 -- Generate priority exclusion CSVs
+    03 -- Resolve title / body per user into enriched CSVs
+    04 -- Trigger CleverTap campaigns (dry-run by default)
 
 Usage:
     python 05_run_pipeline.py --slot morning
-    python 05_run_pipeline.py --fetch-mastersheet --slot both --date 22032026
+    python 05_run_pipeline.py --slot both --date 22032026
     python 05_run_pipeline.py --slot morning --live   # AUTHORISED RUNS ONLY
 """
 
@@ -40,13 +40,9 @@ FULL_DISCLAIMER = """
 """
 
 
-def print_header(live: bool, fetch: bool) -> None:
+def print_header(live: bool) -> None:
     mode = "LIVE MODE " if live else "DRY-RUN MODE (default)"
-    fetch_stage = (
-        "1. Fetch clinic_mastersheet from Google Sheets  (01_fetch_clinic_mastersheet.py)"
-        if fetch
-        else "1. [SKIPPED] Fetch mastersheet  (pass --fetch-mastersheet to enable)"
-    )
+    fetch_stage = "1. Fetch clinic_mastersheet from Google Sheets  (01_fetch_clinic_mastersheet.py)"
     print(FULL_DISCLAIMER.format(mode=mode, fetch_stage=fetch_stage))
 
 
@@ -182,12 +178,6 @@ def main() -> None:
         )
     )
     parser.add_argument(
-        "--fetch-mastersheet",
-        action="store_true",
-        default=False,
-        help="Run stage 1: fetch clinic_mastersheet from Google Sheets before processing.",
-    )
-    parser.add_argument(
         "--date",
         type=parse_date,
         default=None,
@@ -254,11 +244,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print_header(live=args.live, fetch=args.fetch_mastersheet)
+    print_header(live=args.live)
 
-    # -- Stage 1: Fetch mastersheet (optional) -----------------------------
-    if args.fetch_mastersheet:
-        run_fetch(script_dir)
+    # -- Stage 1: Fetch mastersheet ----------------------------------------
+    run_fetch(script_dir)
 
     # -- Stage 2: Generate priority exclusion CSVs --------------------------
     run_generate(
