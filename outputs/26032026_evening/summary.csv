@@ -1,0 +1,2 @@
+priority,cohort_name,input_candidates,excluded_by_priority,excluded_by_exclusion_col,exclusion_cohorts,final_count,output_file
+1,KR_Puram_All,5519,0,0,,5519,01_KR_Puram_All.csv

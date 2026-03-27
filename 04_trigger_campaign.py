@@ -210,7 +210,7 @@ def send_request(
 
     payload = {
         "to": {"email": emails},
-        "campaign_id": campaign_id,
+        "campaign_id_list": [campaign_id],
         "ExternalTrigger": ext_trigger,
     }
 
@@ -459,7 +459,7 @@ def main() -> None:
         print(f"[ERROR] CLEVERTAP_CAMPAIGN_ID must be an integer, got: {campaign_id_str!r}")
         sys.exit(1)
 
-    url = f"https://{region}.api.clevertap.com/1/send/externaltrigger.json"
+    url = f"https://{region}.api.clevertap.com/2/send/externaltrigger.json"
     headers = {
         "X-CleverTap-Account-Id": account_id,
         "X-CleverTap-Passcode": passcode,
