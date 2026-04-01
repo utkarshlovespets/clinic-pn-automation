@@ -29,6 +29,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock
 from typing import List, Optional, Set, Tuple
+from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 import requests
@@ -39,6 +40,7 @@ from dotenv import dotenv_values
 BATCH_SIZE = 1000
 MAX_WORKERS_DEFAULT = 30
 LIVE_COUNTDOWN_SECONDS = 5
+LOG_FIELDS = ["timestamp", "email", "utm_name", "clicked", "title", "body"]
 
 DISCLAIMER_DRY_RUN = """
 ================================================================================
@@ -55,6 +57,24 @@ DISCLAIMER_LIVE = """
   Press Ctrl+C within {n} seconds to abort...
 ================================================================================
 """
+
+
+def extract_utm_name(android_deeplink: str, ios_deeplink: str) -> str:
+    """Extract utm_name value from deeplink URL query params.
+
+    Uses utm_campaign as the primary key used in current deeplink templates.
+    Falls back to utm_name if present.
+    """
+    for deeplink in (android_deeplink, ios_deeplink):
+        if not deeplink:
+            continue
+        parsed = urlparse(deeplink)
+        query = parse_qs(parsed.query)
+        for key in ("utm_campaign", "utm_name"):
+            values = query.get(key)
+            if values:
+                return str(values[0]).strip()
+    return ""
 
 
 # -- Job building --------------------------------------------------------------
@@ -270,9 +290,9 @@ def run_parallel(
 ) -> None:
     """Dispatch all jobs in parallel using ThreadPoolExecutor.
 
-    After dispatch, writes a per-slot-directory CSV dispatch log to log_dir
-    (if provided).  Log columns: email, cohort_name, priority, title, body,
-    dry_run, timestamp, status.
+    After dispatch, writes a per-slot-directory CSV campaign log to log_dir
+    (if provided), separated into dry_run/live subfolders.
+    Log columns: timestamp, email, utm_name, clicked, title, body.
     """
     if not jobs:
         print("  No jobs to process.")
@@ -314,26 +334,18 @@ def run_parallel(
             else:
                 print(result_str)
 
-            cohort_name, priority, emails, copy1, copy2, _, _, output_dir_name = job
-
-            if dry_run:
-                status = "DRY-RUN"
-            elif "-> OK" in result_str:
-                status = "OK"
-            else:
-                status = "ERROR"
+            cohort_name, priority, emails, copy1, copy2, android_dl, ios_dl, output_dir_name = job
+            utm_name = extract_utm_name(android_dl, ios_dl)
 
             ts = datetime.now().isoformat(timespec="seconds")
             for email in emails:
                 log_rows.append({
+                    "timestamp": ts,
                     "email": email,
-                    "cohort_name": cohort_name,
-                    "priority": priority,
+                    "utm_name": utm_name,
+                    "clicked": "",
                     "title": copy1[:120],
                     "body": copy2[:120],
-                    "dry_run": dry_run,
-                    "timestamp": ts,
-                    "status": status,
                     "_output_dir": output_dir_name,
                 })
 
@@ -343,21 +355,20 @@ def run_parallel(
         for cname, count in sorted(suppressed_counts.items()):
             print(f"  [DRY-RUN] {cname}: +{count} additional batch(es) suppressed (same payload/result)")
 
-    # Write one log CSV per output directory.
+    # Write one campaign log CSV per output directory under mode-specific folder.
 
     if log_rows and log_dir is not None:
-        log_dir.mkdir(parents=True, exist_ok=True)
+        mode_dir = log_dir / ("dry_run" if dry_run else "live")
+        mode_dir.mkdir(parents=True, exist_ok=True)
         by_dir: dict = defaultdict(list)
         for row in log_rows:
             by_dir[row["_output_dir"]].append(row)
 
-        log_fields = ["email", "cohort_name", "priority", "title", "body",
-                      "dry_run", "timestamp", "status"]
         for dir_name, rows in by_dir.items():
-            log_path = log_dir / f"{dir_name}_dispatch_log.csv"
+            log_path = mode_dir / f"{dir_name}_campaign_log.csv"
             file_exists = log_path.exists()
             with open(log_path, "a", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=log_fields, extrasaction="ignore")
+                writer = csv.DictWriter(f, fieldnames=LOG_FIELDS, extrasaction="ignore")
                 if not file_exists:
                     writer.writeheader()
                 writer.writerows(rows)
@@ -490,6 +501,7 @@ def main() -> None:
         output_dirs = [base / f"{d.strftime('%d%m%Y')}_{s}" for d in dates for s in slots]
 
     log_dir = (script_dir / "outputs" / "log").resolve()
+    mode_log_dir = log_dir / ("dry_run" if dry_run else "live")
 
     print(f"Campaign ID  : {campaign_id}")
     print(f"API endpoint : {url}")
@@ -497,7 +509,7 @@ def main() -> None:
     print(f"Max workers  : {args.max_workers}")
     if cohorts_filter:
         print(f"Cohort filter: {', '.join(sorted(cohorts_filter))}")
-    print(f"Log dir      : {log_dir}")
+    print(f"Log dir      : {mode_log_dir}")
     print()
 
     # -- Build jobs ------------------------------------------------------------

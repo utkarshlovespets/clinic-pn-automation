@@ -1,0 +1,7 @@
+priority,cohort_name,input_candidates,excluded_by_priority,excluded_by_exclusion_col,exclusion_cohorts,final_count,output_file
+1,KR_Puram_All,5575,0,0,,5575,01_KR_Puram_All.csv
+2,Rajaji_Nagar_n2b_15km,4752,0,0,,4752,02_Rajaji_Nagar_n2b_15km.csv
+3,Clinic_Skin_N2B_Mar'26,14941,194,112,Appointment Completed,14636,03_Clinic_Skin_N2B_Mar_26.csv
+4,Clinic_Gut_N2B_Mar'26,7404,1935,84,Appointment Completed,5385,04_Clinic_Gut_N2B_Mar_26.csv
+5,Clinic_Dental_N2B_Mar'26,1707,487,22,Appointment Completed,1198,05_Clinic_Dental_N2B_Mar_26.csv
+6,Clinic_N2B_All_Bangalore,97407,10397,0,Appointment Completed,87010,06_Clinic_N2B_All_Bangalore.csv
