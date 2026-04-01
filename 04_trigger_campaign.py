@@ -39,7 +39,7 @@ from dotenv import dotenv_values
 
 BATCH_SIZE = 1000
 MAX_WORKERS_DEFAULT = 30
-LIVE_COUNTDOWN_SECONDS = 5
+LIVE_COUNTDOWN_SECONDS = 10
 LOG_FIELDS = ["timestamp", "email", "utm_name", "clicked", "title", "body"]
 
 DISCLAIMER_DRY_RUN = """
