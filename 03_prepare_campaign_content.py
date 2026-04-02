@@ -120,11 +120,11 @@ def format_run_date(output_dir: Path) -> str:
     """Extract and format the run date from the output directory name.
 
     Directory names follow the pattern DDMMYYYY_slot (e.g. "19032026_morning").
-    Returns the date as DDMonth with no leading zero on the day (e.g. "19March").
+    Returns the date as DDMonth with a zero-padded day (e.g. "19March", "02April").
     """
     date_part = output_dir.name.split("_")[0]  # e.g. "19032026"
     run_date = datetime.strptime(date_part, "%d%m%Y")
-    return f"{run_date.day}{run_date.strftime('%B')}"  # e.g. "19March"
+    return run_date.strftime("%d%B")  # e.g. "19March", "02April"
 
 
 # -- Core logic ----------------------------------------------------------------
