@@ -1,0 +1,7 @@
+priority,cohort_name,input_candidates,excluded_by_priority,excluded_by_exclusion_col,exclusion_cohorts,final_count,output_file
+1,Grooming_Replenishment,49,0,0,,49,01_Grooming_Replenishment.csv
+2,KR_Puram_All,5612,0,0,,5612,02_KR_Puram_All.csv
+3,Clinic_Vaccination_Due,357,2,0,,355,03_Clinic_Vaccination_Due.csv
+4,Clinic_Repeat,9729,304,0,,9425,04_Clinic_Repeat.csv
+5,Clinic_Birthday,3651,443,0,,3208,05_Clinic_Birthday.csv
+6,Clinic_N2B_All_Bangalore,97751,6564,0,Appointment Completed,91187,06_Clinic_N2B_All_Bangalore.csv
