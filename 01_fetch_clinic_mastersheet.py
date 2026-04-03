@@ -14,7 +14,7 @@ from googleapiclient.errors import HttpError
 
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-WORKSHEET_NAME = "PN_Automation"
+WORKSHEET_NAME = "Clinic_PN_Automation"
 DEFAULT_OUTPUT = "data/clinic_mastersheet.csv"
 DEFAULT_COLUMNS_RANGE = "A:Z"
 

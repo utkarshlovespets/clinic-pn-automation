@@ -1,6 +1,7 @@
-"""Orchestrate the full CleverTap automation pipeline.
+"""
+Orchestrate the full CleverTap automation pipeline.
 
-⚠️  DISCLAIMER: This script defaults to DRY-RUN mode.
+⚠️ DISCLAIMER: This script defaults to DRY-RUN mode.
     No actual CleverTap API calls are made unless --live is explicitly passed.
     The --live flag must NEVER be used until the project is fully tested
     and approved by the team.

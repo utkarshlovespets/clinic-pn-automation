@@ -49,7 +49,7 @@ Downloads the campaign schedule from a Google Sheets spreadsheet using the Googl
 
 ### Input
 
-- Google Sheets spreadsheet (sheet name: `PN_Automation`)
+- Google Sheets spreadsheet (sheet name: `Clinic_PN_Automation`)
 - `.env` — `SPREADSHEET_ID`, `GOOGLE_CREDENTIALS_FILE`, `GOOGLE_TOKEN_FILE`
 - `secret/credentials.json` — Google OAuth 2.0 app credentials
 - `secret/token.json` — Cached OAuth token (auto-refreshed)
@@ -72,7 +72,7 @@ Downloads the campaign schedule from a Google Sheets spreadsheet using the Googl
 
 ### Notes
 
-- Falls back to the first sheet if `PN_Automation` tab is not found
+- Falls back to the first sheet if `Clinic_PN_Automation` tab is not found
 - Pads rows with empty strings to normalize row lengths
 
 ---

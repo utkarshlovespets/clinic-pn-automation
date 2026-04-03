@@ -69,7 +69,7 @@ Set `SPREADSHEET_ID` in `.env` to the ID from your Google Sheets URL:
 https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit
 ```
 
-The pipeline reads from the sheet tab named **`PN_Automation`** (falls back to the first tab if not found).
+The pipeline reads from the sheet tab named **`Clinic_PN_Automation`** (falls back to the first tab if not found).
 
 ---
 
@@ -117,7 +117,7 @@ Clinic_Vaccination_Due,vaccination_due.csv,https://supertails.com/pages/clinic?u
 
 ## Google Sheets Mastersheet Format
 
-The `PN_Automation` tab should have these columns (row 1 = headers):
+The `Clinic_PN_Automation` tab should have these columns (row 1 = headers):
 
 | Column | Notes |
 |---|---|
