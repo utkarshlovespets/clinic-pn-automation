@@ -12,6 +12,7 @@ Rajaji_Nagar_n2b_15km,all_rajaji_nagar.csv,https://supertails.com/pages/supertai
 KR_Puram_All,all_kr_puram.csv,https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign={date}_MP_{priority}_Clinic_xxxKR,supertails-com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign={date}_MP_{priority}_Clinic_xxxKR
 Clinic_Repeat,repeat_clinic.csv,https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign={date}_MP_{priority}_Clinic_Repeat_xxALL,supertails-com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign={date}_MP_{priority}_Clinic_Repeat_xxALL
 AHS_Repeat,repeat_ahs.csv,https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign={date}_MP_{priority}_Clinic_Repeat_xxAHS,supertails-com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign={date}_MP_{priority}_Clinic_Repeat_xxAHS
+AHS_N2B_All_Bangalore,n2b_bangalore.csv,https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign={date}_MP_{priority}_AHS_xxN2B,supertails-com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign={date}_MP_{priority}_AHS_xxN2B
 Appointment Completed,appointment_completed.csv,,
 30_min_delivery,30min_delivery.csv,,
 lapser remove,lapser_remove.csv,,
