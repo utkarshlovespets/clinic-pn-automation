@@ -1,9 +1,6 @@
+secrets/
+outputs/
 .env
-
-# Secrets
-secret/
-*.secret
-
-# Python cache
 __pycache__/
-*.py[cod]
+cohorts/
+clinic_mastersheet.csv
