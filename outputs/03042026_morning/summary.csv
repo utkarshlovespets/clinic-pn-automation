@@ -1,7 +1,0 @@
-priority,cohort_name,input_candidates,excluded_by_priority,excluded_by_exclusion_col,exclusion_cohorts,final_count,output_file
-1,Grooming_Replenishment,52,0,0,,52,01_Grooming_Replenishment.csv
-2,KR_Puram_All,5612,0,0,,5612,02_KR_Puram_All.csv
-3,Clinic_Skin_N2B_Mar'26,14941,115,117,Appointment Completed,14710,03_Clinic_Skin_N2B_Mar_26.csv
-4,Clinic_Gut_N2B_Mar'26,7404,1904,89,Appointment Completed,5411,04_Clinic_Gut_N2B_Mar_26.csv
-5,Clinic_Dental_N2B_Mar'26,1707,485,22,Appointment Completed,1200,05_Clinic_Dental_N2B_Mar_26.csv
-6,Clinic_N2B_All_Bangalore,97751,5848,0,Appointment Completed,91903,06_Clinic_N2B_All_Bangalore.csv
