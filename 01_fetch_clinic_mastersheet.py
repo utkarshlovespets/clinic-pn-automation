@@ -29,9 +29,9 @@ def resolve_path(path_value: str, fallback: str, base_dir: Path) -> Path:
 
 	candidates = [base_dir / raw_path]
 
-	# If only filename is provided, try secret/<filename> as well.
+	# If only filename is provided, try secrets/<filename> as well.
 	if raw_path.parent == Path("."):
-		candidates.append(base_dir / "secret" / raw_path.name)
+		candidates.append(base_dir / "secrets" / raw_path.name)
 
 	for candidate in candidates:
 		if candidate.exists():
@@ -111,8 +111,8 @@ def main() -> None:
 	env = dotenv_values(script_dir / ".env")
 
 	env_spreadsheet_id = (env.get("SPREADSHEET_ID") or "").strip()
-	env_credentials = (env.get("GOOGLE_CREDENTIALS_FILE") or "secret/credentials.json").strip()
-	env_token = (env.get("GOOGLE_TOKEN_FILE") or "secret/token.json").strip()
+	env_credentials = (env.get("GOOGLE_CREDENTIALS_FILE") or "secrets/credentials.json").strip()
+	env_token = (env.get("GOOGLE_TOKEN_FILE") or "secrets/token.json").strip()
 
 	parser = argparse.ArgumentParser(
 		description="Fetch clinic master sheet data from Google Sheets and save as CSV."
@@ -129,12 +129,12 @@ def main() -> None:
 	)
 	parser.add_argument(
 		"--credentials",
-		default=env_credentials or "secret/credentials.json",
+		default=env_credentials or "secrets/credentials.json",
 		help="Path to OAuth client credentials JSON.",
 	)
 	parser.add_argument(
 		"--token",
-		default=env_token or "secret/token.json",
+		default=env_token or "secrets/token.json",
 		help="Path to OAuth token JSON.",
 	)
 	parser.add_argument(
@@ -148,8 +148,8 @@ def main() -> None:
 	if not args.spreadsheet_id:
 		parser.error("Missing spreadsheet ID. Set SPREADSHEET_ID in .env or pass --spreadsheet-id.")
 
-	credentials_path = resolve_path(args.credentials, "secret/credentials.json", script_dir)
-	token_path = resolve_path(args.token, "secret/token.json", script_dir)
+	credentials_path = resolve_path(args.credentials, "secrets/credentials.json", script_dir)
+	token_path = resolve_path(args.token, "secrets/token.json", script_dir)
 	output_path = resolve_path(args.output, DEFAULT_OUTPUT, script_dir)
 
 	if not credentials_path.exists():
