@@ -85,6 +85,18 @@ Downloads the campaign schedule from a Google Sheets spreadsheet using the Googl
 
 The core logic stage. Reads the mastersheet for a given date/slot, loads the corresponding cohort CSVs, applies deduplication and exclusion rules, and writes per-priority output CSVs.
 
+### Date and Slot Propagation
+
+When run via `run_pipeline.py`, this stage automatically receives the `--date` and `--slot` arguments from the orchestrator. This ensures all pipeline stages remain aligned to the same date and slot.
+
+- If `--date` is omitted, defaults to today's date
+- If `--slot` is omitted, defaults to processing both morning and evening
+
+**Standalone use:** You can also run Stage 2 directly with explicit date/slot:
+```bash
+python 02_generate_priority_exclusions.py --date 25032026 --slot morning
+```
+
 ### Input
 
 - `data/clinic_mastersheet.csv`
@@ -180,12 +192,23 @@ Deeplink base URLs from `deeplink_map.csv` may contain these substitution tokens
 | Token | Replaced With | Example |
 |---|---|---|
 | `{date}` | Date in `DDMonth` format | `25March` |
-| `{priority}` | Priority number | `1`, `2`, `3` |
+| `{priority}` | Slot-tagged priority token | `1M`, `2M`, `1E`, `2E` |
+
+**Priority Token Format:**
+- **Morning slot:** `1M`, `2M`, `3M`, ... (prioritized 1 to N per date)
+- **Evening slot:** `1E`, `2E`, `3E`, ... (prioritized 1 to N per date)
+
+Stage 3 automatically detects the slot from the output directory path (e.g., `outputs/25032026_morning/`) and applies the correct suffix (`M` or `E`) to each priority number. This allows campaign analytics to distinguish morning vs evening sends purely from the UTM `priority` parameter.
+
+This allows tracking which cohorts were delivered in morning vs evening through the UTM parameter alone, without needing to cross-reference the run date/slot separately.
 
 **Example:**
 
 Template: `https://supertails.com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxRAJ`
-Result: `https://supertails.com/pages/clinic?utm_campaign=25March_MP_1_Clinic_xxRAJ`
+
+Morning priority 1 result: `https://supertails.com/pages/clinic?utm_campaign=25March_MP_1M_Clinic_xxRAJ`
+
+Evening priority 2 result: `https://supertails.com/pages/clinic?utm_campaign=25March_MP_2E_Clinic_xxRAJ`
 
 ---
 

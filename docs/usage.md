@@ -40,6 +40,8 @@ python run_pipeline.py --slot morning
 python run_pipeline.py --slot both --date 22032026
 ```
 
+**Important:** The `--date` and `--slot` flags are propagated across all pipeline stages. If omitted, all stages default to today's date and both slots.
+
 **Preview only specific cohorts:**
 ```bash
 python run_pipeline.py --slot morning --cohorts "N2B_All_Bangalore" "Clinic_Birthday"
@@ -49,6 +51,8 @@ python run_pipeline.py --slot morning --cohorts "N2B_All_Bangalore" "Clinic_Birt
 ```bash
 python run_pipeline.py --slot morning --live
 ```
+
+When running live, a **10-second countdown** will be displayed before Stage 4 triggers campaigns. Press Ctrl+C during the countdown to abort.
 
 **Run live with higher parallelism:**
 ```bash

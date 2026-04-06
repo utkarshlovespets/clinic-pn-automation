@@ -30,8 +30,18 @@ Maps cohort names to their data files and URL templates.
 |---|---|---|
 | `Cohort Name` | string | Cohort identifier (matches mastersheet) |
 | `cohort_dataset` | string | Cohort CSV filename in `data/cohorts/` |
-| `android_base_url` | string | Android deeplink URL (may contain `{date}`, `{priority}`) |
-| `ios_base_url` | string | iOS deeplink URL (may contain `{date}`, `{priority}`) |
+| `android_base_url` | string | Android deeplink URL (may contain `{date}`, `{priority}` tokens) |
+| `ios_base_url` | string | iOS deeplink URL (may contain `{date}`, `{priority}` tokens) |
+
+**Priority Token Format:**
+- Morning campaigns: `{priority}` replaced with `1M`, `2M`, `3M`, ...
+- Evening campaigns: `{priority}` replaced with `1E`, `2E`, `3E`, ...
+
+Example: `https://supertails.com/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxRAJ`
+
+Result (morning, priority 1): `https://supertails.com/clinic?utm_campaign=25March_MP_1M_Clinic_xxRAJ`
+
+Result (evening, priority 3): `https://supertails.com/clinic?utm_campaign=25March_MP_3E_Clinic_xxRAJ`
 
 ---
 
@@ -115,8 +125,16 @@ Same files as Stage 2 output, with additional columns added in-place.
 | `Pet Name` | string | Pet's name |
 | `title` | string | Resolved notification title (personalized) |
 | `body` | string | Resolved notification body (personalized) |
-| `android_deeplink` | string | Final Android URL (date and priority substituted) |
-| `ios_deeplink` | string | Final iOS URL |
+| `android_deeplink` | string | Final Android URL (date and slot-tagged priority substituted) |
+| `ios_deeplink` | string | Final iOS URL (date and slot-tagged priority substituted) |
+
+**Example (morning, priority 1):**
+- `android_deeplink`: `https://supertails.com/clinic?utm_campaign=25March_MP_1M_Clinic_xxRAJ`
+- `ios_deeplink`: `https://supertails.com/clinic?utm_campaign=25March_MP_1M_Clinic_xxRAJ`
+
+**Example (evening, priority 2):**
+- `android_deeplink`: `https://supertails.com/clinic?utm_campaign=25March_MP_2E_Clinic_xxRAJ`
+- `ios_deeplink`: `https://supertails.com/clinic?utm_campaign=25March_MP_2E_Clinic_xxRAJ`
 
 ---
 

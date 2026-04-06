@@ -35,6 +35,16 @@ Set up credentials:
 - Copy `.env.example` to `.env` and fill in your credentials (see [configuration.md](configuration.md))
 - Place `credentials.json` (Google OAuth) in `secret/`
 
+### Git-Ignored Files
+
+The following are automatically ignored by `.gitignore` and must not be committed:
+- `secret/` — OAuth credentials and tokens
+- `.env` — Environment variables with API keys
+- `outputs/` — Campaign output CSVs and logs
+- `data/cohorts/` — User list CSVs
+- `data/clinic_mastersheet.csv` — Downloaded from Google Sheets
+- `__pycache__/` — Python bytecode
+
 ### Run a Dry-Run (Safe)
 
 ```bash
