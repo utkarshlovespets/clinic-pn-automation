@@ -95,25 +95,25 @@ def load_deeplink_map(path: Path) -> dict:
     return result
 
 
-def build_deeplink(url_template: str, date_formatted: str, priority: int) -> str:
+def build_deeplink(url_template: str, date_formatted: str, priority_token: str) -> str:
     """Replace {date} and {priority} placeholders in a URL template.
 
     Placeholders:
         {date}     -- replaced with DDMonth (e.g. "18March", "19March")
-        {priority} -- replaced with the cohort's priority integer (e.g. 1, 2, 3)
+        {priority} -- replaced with the cohort priority token (e.g. "1M", "2M", "1E")
 
     Args:
         url_template:   Full URL string containing placeholders.
                         Example: "...utm_campaign={date}_MP_{priority}_Clinic_xxRAJ"
         date_formatted: Date string in DDMonth format derived from the output dir name.
-        priority:       Cohort priority (1 = highest, from the NN_ filename prefix).
+        priority_token: Cohort priority token for UTM tracking.
 
     Returns:
         Resolved URL string, or "" if url_template is blank.
     """
     if not url_template:
         return ""
-    return url_template.replace("{date}", date_formatted).replace("{priority}", str(priority))
+    return url_template.replace("{date}", date_formatted).replace("{priority}", priority_token)
 
 
 def format_run_date(output_dir: Path) -> str:
@@ -125,6 +125,17 @@ def format_run_date(output_dir: Path) -> str:
     date_part = output_dir.name.split("_")[0]  # e.g. "19032026"
     run_date = datetime.strptime(date_part, "%d%m%Y")
     return run_date.strftime("%d%B")  # e.g. "19March", "02April"
+
+
+def get_deeplink_priority_token(output_dir: Path, priority: int) -> str:
+    """Return slot-tagged priority token for deeplink UTM tracking.
+
+    Morning slot: 1M..nM
+    Evening slot: 1E..nE
+    """
+    slot = output_dir.name.split("_")[-1].strip().lower()
+    suffix = "E" if slot == "evening" else "M"
+    return f"{priority}{suffix}"
 
 
 # -- Core logic ----------------------------------------------------------------
@@ -208,6 +219,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
         android_deeplink = ""
         ios_deeplink = ""
         if use_deeplinks:
+            deeplink_priority = get_deeplink_priority_token(output_dir, priority)
             cohort_key = normalize_cohort(cohort_name)
             android_tpl, ios_tpl = deeplink_map.get(cohort_key, ("", ""))
             if not android_tpl and not ios_tpl:
@@ -215,8 +227,8 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
                     f"  [WARNING] {csv_path.name}: '{cohort_name}' not in deeplink map "
                     "-- deeplink columns will be empty."
                 )
-            android_deeplink = build_deeplink(android_tpl, date_formatted, priority)
-            ios_deeplink = build_deeplink(ios_tpl, date_formatted, priority)
+            android_deeplink = build_deeplink(android_tpl, date_formatted, deeplink_priority)
+            ios_deeplink = build_deeplink(ios_tpl, date_formatted, deeplink_priority)
 
         df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
 

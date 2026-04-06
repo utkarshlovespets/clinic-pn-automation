@@ -51,7 +51,7 @@ def parse_exclusion_col(exclusion_str: str) -> List[str]:
 def load_cohort_index_from_map(
     cohort_map_path: Path,
     cohorts_dir: Path,
-) -> Dict[str, List[Tuple[str, str, str]]]:
+) -> Tuple[Dict[str, List[Tuple[str, str, str]]], int]:
     """Build cohort index by loading individual cohort CSV files.
 
     Reads cohort_map_path (deeplink_map.csv) to discover the mapping:

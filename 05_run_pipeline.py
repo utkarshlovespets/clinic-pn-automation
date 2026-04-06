@@ -20,9 +20,12 @@ Usage:
 
 import argparse
 import sys
+import time
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
+
+LIVE_COUNTDOWN_SECONDS = 10
 
 FULL_DISCLAIMER = """
 ================================================================================
@@ -82,6 +85,8 @@ def run_generate(
     clinic_csv: str,
     cohort_map: str,
     output_dir: str,
+    date_str: Optional[str] = None,
+    slot: str = "both",
 ) -> None:
     """Import and call script 02's main() to generate priority exclusion CSVs."""
     print()
@@ -97,7 +102,10 @@ def run_generate(
         "--clinic-csv", clinic_csv,
         "--cohort-map", cohort_map,
         "--output-dir", output_dir,
+        "--slot", slot,
     ]
+    if date_str:
+        _sys.argv.extend(["--date", date_str])
     try:
         sys.path.insert(0, str(script_dir))
         import importlib
@@ -167,6 +175,16 @@ def parse_date(date_str: str) -> datetime:
         raise argparse.ArgumentTypeError(
             f"Date must be in DDMMYYYY format, got: {date_str!r}"
         )
+
+
+def run_live_countdown(seconds: int) -> None:
+    """Show a visible line-by-line countdown before live triggering."""
+    print()
+    print(f"[LIVE] Final safety countdown: starting stage 4 in {seconds} seconds")
+    for remaining in range(seconds, 0, -1):
+        print(f"  Starting in {remaining}...")
+        time.sleep(1)
+    print("  Proceeding now.")
 
 
 def main() -> None:
@@ -245,6 +263,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    run_date = args.date if args.date else datetime.now()
+    date_str = run_date.strftime("%d%m%Y")
+
     print_header(live=args.live)
 
     # -- Stage 1: Fetch mastersheet ----------------------------------------
@@ -256,12 +277,11 @@ def main() -> None:
         clinic_csv=args.clinic_csv,
         cohort_map=args.cohort_map,
         output_dir=args.output_dir,
+        date_str=date_str,
+        slot=args.slot,
     )
 
     # -- Stages 3 + 4: Prepare content then trigger campaigns per slot ---------
-    run_date = args.date if args.date else datetime.now()
-    date_str = run_date.strftime("%d%m%Y")
-
     slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
 
     for slot in slots:
@@ -288,6 +308,9 @@ def main() -> None:
         print("-" * 72)
         print(f"Stage 4 -- Triggering campaigns: {date_str} | {slot}")
         print("-" * 72)
+
+        if args.live:
+            run_live_countdown(LIVE_COUNTDOWN_SECONDS)
 
         run_trigger(
             script_dir,
