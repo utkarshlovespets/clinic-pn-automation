@@ -4,7 +4,7 @@
 
 ## Stage 0: Fetch Cohorts
 
-**File:** `00_fetch_cohorts.py`
+**File:** `fetch_cohorts.py`
 **Status:** Optional — only run when cohort data needs refreshing from the database.
 
 ### What It Does
@@ -24,10 +24,10 @@ Connects to the Supertails analytics MySQL database, executes SQL query files fr
 
 ```bash
 # Run all queries
-python 00_fetch_cohorts.py
+python fetch_cohorts.py
 
 # Run a single query
-python 00_fetch_cohorts.py --query all_rajaji_nagar
+python fetch_cohorts.py --query all_rajaji_nagar
 ```
 
 ### SQL Query Pattern
@@ -267,14 +267,14 @@ Batches across all cohorts are dispatched in parallel using `ThreadPoolExecutor`
 
 ## Orchestrator: Run Pipeline
 
-**File:** `05_run_pipeline.py`
+**File:** `run_pipeline.py`
 
 Runs Stages 1 through 4 end-to-end for a given date and slot.
 
 ### Usage
 
 ```bash
-python 05_run_pipeline.py [OPTIONS]
+python run_pipeline.py [OPTIONS]
 
 Options:
   --date DDMMYYYY         Campaign date (default: today)
@@ -290,17 +290,17 @@ Options:
 
 ```bash
 # Safe preview — today's morning slot
-python 05_run_pipeline.py --slot morning
+python run_pipeline.py --slot morning
 
 # Preview both slots for a past/future date
-python 05_run_pipeline.py --slot both --date 22032026
+python run_pipeline.py --slot both --date 22032026
 
 # Live run — morning slot (authorized only)
-python 05_run_pipeline.py --slot morning --live
+python run_pipeline.py --slot morning --live
 
 # Target specific cohorts only
-python 05_run_pipeline.py --slot morning --cohorts "N2B_All_Bangalore" "Clinic_KN_Mar26"
+python run_pipeline.py --slot morning --cohorts "N2B_All_Bangalore" "Clinic_KN_Mar26"
 
 # High-throughput live run
-python 05_run_pipeline.py --slot morning --live --max-workers 50
+python run_pipeline.py --slot morning --live --max-workers 50
 ```

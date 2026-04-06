@@ -76,14 +76,14 @@ This design makes it easy to:
 
 ## Component Responsibilities
 
-### Orchestrator (`05_run_pipeline.py`)
+### Orchestrator (`run_pipeline.py`)
 
 Imports and runs Stages 1–4 sequentially via `importlib`. Handles:
 - Command-line argument parsing (date, slot, cohort filter, live mode, max-workers)
 - Safety disclaimers and confirmation prompts before live runs
 - Passing context (output directory, date, slot) between stages
 
-### Stage 0 — Fetch Cohorts (`00_fetch_cohorts.py`)
+### Stage 0 — Fetch Cohorts (`fetch_cohorts.py`)
 
 Optional. Connects to MySQL and runs SQL files from `data/queries/` to produce cohort CSVs in `data/cohorts/`. Only needed when cohort data needs refreshing from the database. Cohort CSVs can also be provided manually.
 

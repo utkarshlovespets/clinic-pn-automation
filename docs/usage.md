@@ -20,39 +20,39 @@ pip install pandas mysql-connector-python google-auth-oauthlib google-auth-httpl
 
 ## Running the Full Pipeline
 
-Use `05_run_pipeline.py` to run all stages end-to-end.
+Use `run_pipeline.py` to run all stages end-to-end.
 
 ### Syntax
 
 ```bash
-python 05_run_pipeline.py [--date DDMMYYYY] [--slot {morning,evening,both}] [--live] [--max-workers N] [--cohorts NAME ...]
+python run_pipeline.py [--date DDMMYYYY] [--slot {morning,evening,both}] [--live] [--max-workers N] [--cohorts NAME ...]
 ```
 
 ### Common Scenarios
 
 **Preview today's morning campaign (dry-run):**
 ```bash
-python 05_run_pipeline.py --slot morning
+python run_pipeline.py --slot morning
 ```
 
 **Preview both slots for a specific date:**
 ```bash
-python 05_run_pipeline.py --slot both --date 22032026
+python run_pipeline.py --slot both --date 22032026
 ```
 
 **Preview only specific cohorts:**
 ```bash
-python 05_run_pipeline.py --slot morning --cohorts "N2B_All_Bangalore" "Clinic_Birthday"
+python run_pipeline.py --slot morning --cohorts "N2B_All_Bangalore" "Clinic_Birthday"
 ```
 
 **Run live campaign (morning slot):**
 ```bash
-python 05_run_pipeline.py --slot morning --live
+python run_pipeline.py --slot morning --live
 ```
 
 **Run live with higher parallelism:**
 ```bash
-python 05_run_pipeline.py --slot morning --live --max-workers 50
+python run_pipeline.py --slot morning --live --max-workers 50
 ```
 
 ---
@@ -65,12 +65,12 @@ Each stage can be run independently if needed.
 
 Run all SQL queries:
 ```bash
-python 00_fetch_cohorts.py
+python fetch_cohorts.py
 ```
 
 Run a single query:
 ```bash
-python 00_fetch_cohorts.py --query all_rajaji_nagar
+python fetch_cohorts.py --query all_rajaji_nagar
 ```
 
 ### Stage 1 — Fetch Mastersheet from Google Sheets

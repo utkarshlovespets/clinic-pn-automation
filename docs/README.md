@@ -39,16 +39,16 @@ Set up credentials:
 
 ```bash
 # Preview morning campaign for today
-python 05_run_pipeline.py --slot morning
+python run_pipeline.py --slot morning
 
 # Preview both slots for a specific date
-python 05_run_pipeline.py --slot both --date 22032026
+python run_pipeline.py --slot both --date 22032026
 ```
 
 ### Run a Live Campaign (Authorized Personnel Only)
 
 ```bash
-python 05_run_pipeline.py --slot morning --live
+python run_pipeline.py --slot morning --live
 ```
 
 ---
@@ -58,7 +58,7 @@ python 05_run_pipeline.py --slot morning --live
 ```
 Google Sheets (campaign config)     MySQL Database (cohort data)
          ↓                                    ↓
-  01_fetch_clinic_mastersheet.py    00_fetch_cohorts.py
+  01_fetch_clinic_mastersheet.py    fetch_cohorts.py
          ↓                                    ↓
               02_generate_priority_exclusions.py
                           ↓
@@ -70,7 +70,7 @@ Google Sheets (campaign config)     MySQL Database (cohort data)
              print payloads)  CleverTap API)
 ```
 
-Each stage is a standalone script. The orchestrator `05_run_pipeline.py` runs them end-to-end.
+Each stage is a standalone script. The orchestrator `run_pipeline.py` runs them end-to-end.
 
 ---
 
@@ -78,12 +78,12 @@ Each stage is a standalone script. The orchestrator `05_run_pipeline.py` runs th
 
 ```
 clevertap-automation-pipeline/
-├── 00_fetch_cohorts.py              # Stage 0: Fetch cohorts from MySQL
+├── fetch_cohorts.py              # Stage 0: Fetch cohorts from MySQL
 ├── 01_fetch_clinic_mastersheet.py   # Stage 1: Fetch config from Google Sheets
 ├── 02_generate_priority_exclusions.py  # Stage 2: Apply exclusion logic
 ├── 03_prepare_campaign_content.py   # Stage 3: Personalize content & deeplinks
 ├── 04_trigger_campaign.py           # Stage 4: Trigger CleverTap API
-├── 05_run_pipeline.py               # Orchestrator: runs all stages
+├── run_pipeline.py               # Orchestrator: runs all stages
 ├── utils.py                         # Shared utility functions
 ├── .env                             # Credentials and config (git-ignored)
 ├── data/

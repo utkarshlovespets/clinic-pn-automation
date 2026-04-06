@@ -13,9 +13,9 @@ Stages:
     04 -- Trigger CleverTap campaigns (dry-run by default)
 
 Usage:
-    python 05_run_pipeline.py --slot morning
-    python 05_run_pipeline.py --slot both --date 22032026
-    python 05_run_pipeline.py --slot morning --live   # AUTHORISED RUNS ONLY
+    python run_pipeline.py --slot morning
+    python run_pipeline.py --slot both --date 22032026
+    python run_pipeline.py --slot morning --live   # AUTHORISED RUNS ONLY
 """
 
 import argparse

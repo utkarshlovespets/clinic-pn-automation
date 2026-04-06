@@ -10,9 +10,9 @@ MySQL credentials are read from .env:
     MYSQL_PASSWORD
 
 Usage:
-    python 00_fetch_cohorts.py                        # run all queries
-    python 00_fetch_cohorts.py --query all_rajaji_nagar
-    python 00_fetch_cohorts.py --query all_rajaji_nagar n2b_bangalore
+    python fetch_cohorts.py                        # run all queries
+    python fetch_cohorts.py --query all_rajaji_nagar
+    python fetch_cohorts.py --query all_rajaji_nagar n2b_bangalore
 """
 
 import argparse
