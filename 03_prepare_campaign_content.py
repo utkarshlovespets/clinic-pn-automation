@@ -179,6 +179,29 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
             str(row["content_template"]).strip(),
         )
 
+    # Optional file-level mapping from summary.csv.
+    # This prevents stale NN_*.csv files (from older runs) from being processed.
+    summary_map = {}
+    summary_path = output_dir / "summary.csv"
+    if summary_path.exists():
+        summary_df = pd.read_csv(summary_path, dtype=str, keep_default_na=False)
+        required_summary = {"priority", "cohort_name", "output_file"}
+        missing_summary = required_summary - set(summary_df.columns)
+        if missing_summary:
+            raise ValueError(f"summary.csv is missing columns: {sorted(missing_summary)}")
+        for _, srow in summary_df.iterrows():
+            output_file = str(srow.get("output_file", "")).strip()
+            if not output_file:
+                continue
+            try:
+                summary_priority = int(str(srow.get("priority", "")).strip())
+            except (ValueError, TypeError):
+                continue
+            summary_map[output_file] = {
+                "priority": summary_priority,
+                "cohort_name": str(srow.get("cohort_name", "")).strip(),
+            }
+
     # Load deeplink map if provided.
     deeplink_map: dict = {}
     use_deeplinks = deeplink_map_path is not None
@@ -191,7 +214,21 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
     if use_deeplinks:
         print(f"  Run date            : {date_formatted}")
 
-    csv_files = sorted(output_dir.glob("[0-9][0-9]_*.csv"))
+    if summary_map:
+        csv_files = [
+            output_dir / output_name
+            for output_name in sorted(summary_map)
+            if (output_dir / output_name).exists()
+        ]
+        stale_files = sorted(
+            p.name for p in output_dir.glob("[0-9][0-9]_*.csv") if p.name not in summary_map
+        )
+        if stale_files:
+            print(
+                f"  [INFO] Skipping {len(stale_files)} stale CSV(s) not present in summary.csv."
+            )
+    else:
+        csv_files = sorted(output_dir.glob("[0-9][0-9]_*.csv"))
     if not csv_files:
         print(f"  [WARNING] No priority CSV files found in {output_dir}")
         return
@@ -200,11 +237,17 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
     total_rows = 0
 
     for csv_path in csv_files:
-        try:
-            priority = int(csv_path.stem.split("_")[0])
-        except (ValueError, IndexError):
-            print(f"  [WARNING] Skipping file with unexpected name: {csv_path.name}")
-            continue
+        file_meta = summary_map.get(csv_path.name)
+        if file_meta is not None:
+            priority = file_meta["priority"]
+            file_cohort_name = file_meta["cohort_name"]
+        else:
+            try:
+                priority = int(csv_path.stem.split("_")[0])
+            except (ValueError, IndexError):
+                print(f"  [WARNING] Skipping file with unexpected name: {csv_path.name}")
+                continue
+            file_cohort_name = ""
 
         if priority not in meta_lookup:
             print(
@@ -214,17 +257,18 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
             continue
 
         cohort_name, title_tpl, content_tpl = meta_lookup[priority]
+        deeplink_cohort = file_cohort_name or cohort_name
 
         # Resolve deeplinks for this cohort (same value for every user in the file).
         android_deeplink = ""
         ios_deeplink = ""
         if use_deeplinks:
             deeplink_priority = get_deeplink_priority_token(output_dir, priority)
-            cohort_key = normalize_cohort(cohort_name)
+            cohort_key = normalize_cohort(deeplink_cohort)
             android_tpl, ios_tpl = deeplink_map.get(cohort_key, ("", ""))
             if not android_tpl and not ios_tpl:
                 print(
-                    f"  [WARNING] {csv_path.name}: '{cohort_name}' not in deeplink map "
+                    f"  [WARNING] {csv_path.name}: '{deeplink_cohort}' not in deeplink map "
                     "-- deeplink columns will be empty."
                 )
             android_deeplink = build_deeplink(android_tpl, date_formatted, deeplink_priority)
