@@ -79,6 +79,7 @@ def build_slot_summary(slot_dir: Path) -> pd.DataFrame:
     date_part, slot = slot_dir.name.split("_", 1)
     run_date = datetime.strptime(date_part, "%d%m%Y")
     date_value = run_date.strftime("%d/%m/%Y")
+    slot_value = "Evening" if slot.strip().lower() == "evening" else "Morning"
 
     rows: list[dict[str, int | str]] = []
 
@@ -112,6 +113,7 @@ def build_slot_summary(slot_dir: Path) -> pd.DataFrame:
         rows.append(
             {
                 "date": date_value,
+                "slot": slot_value,
                 "priority": priority,
                 "utm_campaign": utm_campaign,
                 "title_template": str(row.get("title_template", "")).strip(),
@@ -122,7 +124,7 @@ def build_slot_summary(slot_dir: Path) -> pd.DataFrame:
 
     result = pd.DataFrame(
         rows,
-        columns=["date", "priority", "utm_campaign", "title_template", "content_template", "final_count"],
+        columns=["date", "slot", "priority", "utm_campaign", "title_template", "content_template", "final_count"],
     )
     return result.sort_values(by="priority").reset_index(drop=True)
 

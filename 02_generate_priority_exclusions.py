@@ -321,6 +321,7 @@ def build_priority_files(
 
     date_formatted = run_date.strftime("%d%B")
     date_value = run_date.strftime("%d/%m/%Y")
+    slot_value = "Evening" if run_slot.strip().lower() == "evening" else "Morning"
     log_summary_rows = []
     for row in summary_rows:
         priority = int(row["priority"])
@@ -331,6 +332,7 @@ def build_priority_files(
         log_summary_rows.append(
             {
                 "date": date_value,
+                "slot": slot_value,
                 "priority": priority,
                 "utm_campaign": extract_utm_campaign(resolved_url),
                 "title_template": str(row.get("title_template", "")).strip(),
@@ -346,6 +348,7 @@ def build_priority_files(
         log_summary_rows,
         columns=[
             "date",
+            "slot",
             "priority",
             "utm_campaign",
             "title_template",
