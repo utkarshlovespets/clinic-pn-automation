@@ -15,6 +15,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
+from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 
@@ -46,12 +47,34 @@ def parse_exclusion_col(exclusion_str: str) -> List[str]:
     return [normalize_cohort(p) for p in parts if p.strip()]
 
 
+def build_deeplink(url_template: str, date_formatted: str, priority_token: str) -> str:
+    """Replace {date} and {priority} placeholders in URL template."""
+    if not url_template:
+        return ""
+    return url_template.replace("{date}", date_formatted).replace("{priority}", priority_token)
+
+
+def get_deeplink_priority_token(run_slot: str, priority: int) -> str:
+    """Return slot-tagged priority token for deeplink UTM tracking."""
+    suffix = "E" if run_slot.strip().lower() == "evening" else "M"
+    return f"{priority}{suffix}"
+
+
+def extract_utm_campaign(url: str) -> str:
+    """Extract utm_campaign query parameter from a URL."""
+    if not url:
+        return ""
+    parsed = urlparse(url)
+    utm = parse_qs(parsed.query).get("utm_campaign", [""])
+    return utm[0]
+
+
 # -- Data loaders -------------------------------------------------------------
 
 def load_cohort_index_from_map(
     cohort_map_path: Path,
     cohorts_dir: Path,
-) -> Tuple[Dict[str, List[Tuple[str, str, str]]], int]:
+) -> Tuple[Dict[str, List[Tuple[str, str, str]]], int, Dict[str, str]]:
     """Build cohort index by loading individual cohort CSV files.
 
     Reads cohort_map_path (deeplink_map.csv) to discover the mapping:
@@ -79,6 +102,7 @@ def load_cohort_index_from_map(
         )
 
     index: Dict[str, List[Tuple[str, str, str]]] = {}
+    deeplink_url_map: Dict[str, str] = {}
     loaded = 0
 
     for _, row in map_df.iterrows():
@@ -95,6 +119,7 @@ def load_cohort_index_from_map(
 
         cohort_key = normalize_cohort(cohort_name)
         csv_path = cohorts_dir / dataset_file
+        deeplink_url_map[cohort_key] = str(row.get("android_base_url", "")).strip()
 
         if not csv_path.exists():
             print(
@@ -136,7 +161,7 @@ def load_cohort_index_from_map(
         index[cohort_key] = entries
         loaded += 1
 
-    return index, loaded
+    return index, loaded, deeplink_url_map
 
 
 def load_clinic_mastersheet(path: Path) -> pd.DataFrame:
@@ -179,6 +204,7 @@ def load_clinic_mastersheet(path: Path) -> pd.DataFrame:
 def build_priority_files(
     clinic_df: pd.DataFrame,
     cohort_index: Dict[str, List[Tuple[str, str, str]]],
+    deeplink_url_map: Dict[str, str],
     run_date: pd.Timestamp,
     run_slot: str,
     output_dir: Path,
@@ -270,6 +296,8 @@ def build_priority_files(
             {
                 "priority": priority,
                 "cohort_name": cohort_name,
+                "title_template": str(row.get("Title", "")).strip(),
+                "content_template": str(row.get("Content", "")).strip(),
                 "input_candidates": input_candidates,
                 "excluded_by_priority": excluded_by_priority,
                 "excluded_by_exclusion_col": excluded_by_exclusion_col,
@@ -284,10 +312,48 @@ def build_priority_files(
                 "cohort_name": cohort_name,
                 "title_template": str(row.get("Title", "")).strip(),
                 "content_template": str(row.get("Content", "")).strip(),
+                "cohort_size": input_candidates,
+                "excluded_by_priority": excluded_by_priority,
+                "excluded_by_exclusion_col": excluded_by_exclusion_col,
+                "final_count": len(final_tuples),
             }
         )
 
-    pd.DataFrame(summary_rows).to_csv(output_dir / "summary.csv", index=False)
+    date_formatted = run_date.strftime("%d%B")
+    date_value = run_date.strftime("%d/%m/%Y")
+    log_summary_rows = []
+    for row in summary_rows:
+        priority = int(row["priority"])
+        cohort_key = normalize_cohort(str(row["cohort_name"]))
+        deeplink_tpl = deeplink_url_map.get(cohort_key, "")
+        deeplink_priority = get_deeplink_priority_token(run_slot, priority)
+        resolved_url = build_deeplink(deeplink_tpl, date_formatted, deeplink_priority)
+        log_summary_rows.append(
+            {
+                "date": date_value,
+                "priority": priority,
+                "utm_campaign": extract_utm_campaign(resolved_url),
+                "title_template": str(row.get("title_template", "")).strip(),
+                "content_template": str(row.get("content_template", "")).strip(),
+                "final_count": int(row["final_count"]),
+            }
+        )
+
+    summary_log_dir = output_dir.parent / "log" / "summary"
+    summary_log_dir.mkdir(parents=True, exist_ok=True)
+    log_summary_path = summary_log_dir / f"{run_date.strftime('%d%m%Y')}_{run_slot}.csv"
+    pd.DataFrame(
+        log_summary_rows,
+        columns=[
+            "date",
+            "priority",
+            "utm_campaign",
+            "title_template",
+            "content_template",
+            "final_count",
+        ],
+    ).to_csv(log_summary_path, index=False)
+
     pd.DataFrame(campaign_meta_rows).to_csv(
         output_dir / "campaign_meta.csv", index=False
     )
@@ -362,7 +428,7 @@ def main() -> None:
 
     print("Loading data...")
     clinic_df = load_clinic_mastersheet(clinic_path)
-    cohort_index, loaded_count = load_cohort_index_from_map(cohort_map_path, cohorts_dir)
+    cohort_index, loaded_count, deeplink_url_map = load_cohort_index_from_map(cohort_map_path, cohorts_dir)
 
     total_users = sum(len(v) for v in cohort_index.values())
     print(f"  Clinic mastersheet : {len(clinic_df)} usable rows")
@@ -395,7 +461,7 @@ def main() -> None:
         for run_slot in run_slots:
             out_dir = base_output / f"{run_date.strftime('%d%m%Y')}_{run_slot}"
             found = build_priority_files(
-                clinic_df, cohort_index, run_date, run_slot, out_dir
+                clinic_df, cohort_index, deeplink_url_map, run_date, run_slot, out_dir
             )
             if not found:
                 print(
