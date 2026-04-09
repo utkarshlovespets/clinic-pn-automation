@@ -13,9 +13,9 @@ Stages:
     04 -- Trigger CleverTap campaigns (dry-run by default)
 
 Usage:
-    python run_pipeline.py --slot morning
-    python run_pipeline.py --slot both --date 22032026
-    python run_pipeline.py --slot morning --live   # AUTHORISED RUNS ONLY
+    python run_campaign.py --slot morning
+    python run_campaign.py --slot both --date 22032026
+    python run_campaign.py --slot morning --live   # AUTHORISED RUNS ONLY
 """
 
 import argparse
@@ -188,7 +188,11 @@ def run_live_countdown(seconds: int) -> None:
 
 
 def main() -> None:
-    script_dir = Path(__file__).resolve().parent
+    project_root = Path(__file__).resolve().parent
+    campaign_dir = project_root / "campaign"
+
+    if not campaign_dir.exists():
+        raise FileNotFoundError(f"Campaign scripts directory not found: {campaign_dir}")
 
     parser = argparse.ArgumentParser(
         description=(
@@ -269,11 +273,11 @@ def main() -> None:
     print_header(live=args.live)
 
     # -- Stage 1: Fetch mastersheet ----------------------------------------
-    run_fetch(script_dir)
+    run_fetch(campaign_dir)
 
     # -- Stage 2: Generate priority exclusion CSVs --------------------------
     run_generate(
-        script_dir,
+        campaign_dir,
         clinic_csv=args.clinic_csv,
         cohort_map=args.cohort_map,
         output_dir=args.output_dir,
@@ -286,7 +290,7 @@ def main() -> None:
 
     for slot in slots:
         slot_dir = str(Path(args.output_dir) / f"{date_str}_{slot}")
-        slot_dir_full = (script_dir / slot_dir).resolve()
+        slot_dir_full = (project_root / slot_dir).resolve()
 
         if not slot_dir_full.exists():
             print(
@@ -297,11 +301,11 @@ def main() -> None:
 
         # -- Stage 3: Resolve title / body per user + deeplinks ----------
         raw_dl = Path(args.deeplink_map)
-        deeplink_map_path = raw_dl if raw_dl.is_absolute() else (script_dir / raw_dl).resolve()
+        deeplink_map_path = raw_dl if raw_dl.is_absolute() else (project_root / raw_dl).resolve()
         if not deeplink_map_path.exists():
             print(f"  [WARNING] Deeplink map not found: {deeplink_map_path} -- deeplink columns will be skipped.")
             deeplink_map_path = None
-        run_prepare_content(script_dir, slot_dir_full, deeplink_map_path)
+        run_prepare_content(campaign_dir, slot_dir_full, deeplink_map_path)
 
         # -- Stage 4: Trigger campaigns ------------------------------------
         print()
@@ -313,7 +317,7 @@ def main() -> None:
             run_live_countdown(LIVE_COUNTDOWN_SECONDS)
 
         run_trigger(
-            script_dir,
+            campaign_dir,
             slot_output_dir=str(slot_dir_full),
             live=args.live,
             max_workers=args.max_workers,

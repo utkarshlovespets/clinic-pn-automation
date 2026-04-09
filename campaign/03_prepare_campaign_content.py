@@ -57,6 +57,11 @@ from pathlib import Path
 
 import pandas as pd
 
+# Allow importing shared modules from project root when running from campaign/.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from utils import normalize_cohort, resolve_template
 
 
@@ -334,6 +339,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
 
 def main() -> None:
     script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
 
     parser = argparse.ArgumentParser(
         description=(
@@ -376,7 +382,7 @@ def main() -> None:
     args = parser.parse_args()
 
     raw_dl = Path(args.deeplink_map)
-    deeplink_map_path = raw_dl if raw_dl.is_absolute() else (script_dir / raw_dl).resolve()
+    deeplink_map_path = raw_dl if raw_dl.is_absolute() else (project_root / raw_dl).resolve()
     if not deeplink_map_path.exists():
         print(f"[WARNING] Deeplink map not found: {deeplink_map_path} -- deeplink columns will be skipped.")
         deeplink_map_path = None
@@ -385,7 +391,7 @@ def main() -> None:
     if args.output_dir:
         output_dir = Path(args.output_dir)
         if not output_dir.is_absolute():
-            output_dir = (script_dir / output_dir).resolve()
+            output_dir = (project_root / output_dir).resolve()
         output_dirs = [output_dir]
     else:
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -399,7 +405,7 @@ def main() -> None:
         else:
             dates = [today]
         slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
-        base = (script_dir / args.output_base).resolve()
+        base = (project_root / args.output_base).resolve()
         output_dirs = [base / f"{d.strftime('%d%m%Y')}_{s}" for d in dates for s in slots]
 
     for output_dir in output_dirs:

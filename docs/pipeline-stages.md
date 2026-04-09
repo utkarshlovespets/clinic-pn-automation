@@ -87,7 +87,7 @@ The core logic stage. Reads the mastersheet for a given date/slot, loads the cor
 
 ### Date and Slot Propagation
 
-When run via `run_pipeline.py`, this stage automatically receives the `--date` and `--slot` arguments from the orchestrator. This ensures all pipeline stages remain aligned to the same date and slot.
+When run via `run_campaign.py`, this stage automatically receives the `--date` and `--slot` arguments from the orchestrator. This ensures all pipeline stages remain aligned to the same date and slot.
 
 - If `--date` is omitted, defaults to today's date
 - If `--slot` is omitted, defaults to processing both morning and evening
@@ -288,16 +288,16 @@ Batches across all cohorts are dispatched in parallel using `ThreadPoolExecutor`
 
 ---
 
-## Orchestrator: Run Pipeline
+## Orchestrator: Run Campaign
 
-**File:** `run_pipeline.py`
+**File:** `run_campaign.py`
 
 Runs Stages 1 through 4 end-to-end for a given date and slot.
 
 ### Usage
 
 ```bash
-python run_pipeline.py [OPTIONS]
+python run_campaign.py [OPTIONS]
 
 Options:
   --date DDMMYYYY         Campaign date (default: today)
@@ -313,17 +313,17 @@ Options:
 
 ```bash
 # Safe preview — today's morning slot
-python run_pipeline.py --slot morning
+python run_campaign.py --slot morning
 
 # Preview both slots for a past/future date
-python run_pipeline.py --slot both --date 22032026
+python run_campaign.py --slot both --date 22032026
 
 # Live run — morning slot (authorized only)
-python run_pipeline.py --slot morning --live
+python run_campaign.py --slot morning --live
 
 # Target specific cohorts only
-python run_pipeline.py --slot morning --cohorts "N2B_All_Bangalore" "Clinic_KN_Mar26"
+python run_campaign.py --slot morning --cohorts "N2B_All_Bangalore" "Clinic_KN_Mar26"
 
 # High-throughput live run
-python run_pipeline.py --slot morning --live --max-workers 50
+python run_campaign.py --slot morning --live --max-workers 50
 ```

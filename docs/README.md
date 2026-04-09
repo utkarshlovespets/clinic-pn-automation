@@ -49,16 +49,16 @@ The following are automatically ignored by `.gitignore` and must not be committe
 
 ```bash
 # Preview morning campaign for today
-python run_pipeline.py --slot morning
+python run_campaign.py --slot morning
 
 # Preview both slots for a specific date
-python run_pipeline.py --slot both --date 22032026
+python run_campaign.py --slot both --date 22032026
 ```
 
 ### Run a Live Campaign (Authorized Personnel Only)
 
 ```bash
-python run_pipeline.py --slot morning --live
+python run_campaign.py --slot morning --live
 ```
 
 ---
@@ -80,7 +80,7 @@ Google Sheets (campaign config)     MySQL Database (cohort data)
              print payloads)  CleverTap API)
 ```
 
-Each stage is a standalone script. The orchestrator `run_pipeline.py` runs them end-to-end.
+Each stage is a standalone script. The orchestrator `run_campaign.py` runs them end-to-end.
 
 ---
 
@@ -93,7 +93,7 @@ clevertap-automation-pipeline/
 ├── 02_generate_priority_exclusions.py  # Stage 2: Apply exclusion logic
 ├── 03_prepare_campaign_content.py   # Stage 3: Personalize content & deeplinks
 ├── 04_trigger_campaign.py           # Stage 4: Trigger CleverTap API
-├── run_pipeline.py               # Orchestrator: runs all stages
+├── run_campaign.py               # Orchestrator: runs all stages
 ├── utils.py                         # Shared utility functions
 ├── .env                             # Credentials and config (git-ignored)
 ├── data/

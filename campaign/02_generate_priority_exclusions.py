@@ -19,6 +19,11 @@ from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 
+# Allow importing shared modules from project root when running from campaign/.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from utils import normalize_cohort, sanitize_filename
 
 # -- Feature flags ------------------------------------------------------------
@@ -374,6 +379,7 @@ def build_priority_files(
 
 def main() -> None:
     script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
 
     parser = argparse.ArgumentParser(
         description=(
@@ -419,10 +425,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    clinic_path = (script_dir / args.clinic_csv).resolve()
-    cohort_map_path = (script_dir / args.cohort_map).resolve()
-    cohorts_dir = (script_dir / args.cohorts_dir).resolve()
-    base_output = (script_dir / args.output_dir).resolve()
+    raw_clinic_path = Path(args.clinic_csv)
+    clinic_path = raw_clinic_path if raw_clinic_path.is_absolute() else (project_root / raw_clinic_path).resolve()
+
+    raw_cohort_map_path = Path(args.cohort_map)
+    cohort_map_path = raw_cohort_map_path if raw_cohort_map_path.is_absolute() else (project_root / raw_cohort_map_path).resolve()
+
+    raw_cohorts_dir = Path(args.cohorts_dir)
+    cohorts_dir = raw_cohorts_dir if raw_cohorts_dir.is_absolute() else (project_root / raw_cohorts_dir).resolve()
+
+    raw_output_dir = Path(args.output_dir)
+    base_output = raw_output_dir if raw_output_dir.is_absolute() else (project_root / raw_output_dir).resolve()
 
     if not clinic_path.exists():
         raise FileNotFoundError(f"clinic_mastersheet not found: {clinic_path}")

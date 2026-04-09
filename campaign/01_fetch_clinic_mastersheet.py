@@ -106,9 +106,10 @@ def values_to_csv(values: List[List[str]], output_path: Path) -> None:
 
 def main() -> None:
 	script_dir = Path(__file__).resolve().parent
+	project_root = script_dir.parent
 
 	# Read .env directly into a dict — avoids os.environ interference entirely.
-	env = dotenv_values(script_dir / ".env")
+	env = dotenv_values(project_root / ".env")
 
 	env_spreadsheet_id = (env.get("SPREADSHEET_ID") or "").strip()
 	env_credentials = (env.get("GOOGLE_CREDENTIALS_FILE") or "secrets/credentials.json").strip()
@@ -148,9 +149,9 @@ def main() -> None:
 	if not args.spreadsheet_id:
 		parser.error("Missing spreadsheet ID. Set SPREADSHEET_ID in .env or pass --spreadsheet-id.")
 
-	credentials_path = resolve_path(args.credentials, "secrets/credentials.json", script_dir)
-	token_path = resolve_path(args.token, "secrets/token.json", script_dir)
-	output_path = resolve_path(args.output, DEFAULT_OUTPUT, script_dir)
+	credentials_path = resolve_path(args.credentials, "secrets/credentials.json", project_root)
+	token_path = resolve_path(args.token, "secrets/token.json", project_root)
+	output_path = resolve_path(args.output, DEFAULT_OUTPUT, project_root)
 
 	if not credentials_path.exists():
 		raise FileNotFoundError(f"Credentials file not found: {credentials_path}")

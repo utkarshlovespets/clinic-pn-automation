@@ -24,7 +24,7 @@ import pandas as pd
 from dotenv import dotenv_values
 
 
-QUERIES_DIR = "data/queries"
+QUERIES_DIR = "data/sql_queries"
 COHORTS_DIR = "data/cohorts"
 
 

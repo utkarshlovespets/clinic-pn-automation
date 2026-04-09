@@ -76,7 +76,7 @@ This design makes it easy to:
 
 ## Component Responsibilities
 
-### Orchestrator (`run_pipeline.py`)
+### Orchestrator (`run_campaign.py`)
 
 Imports and runs Stages 1–4 sequentially via `importlib`. Handles:
 - Command-line argument parsing (date, slot, cohort filter, live mode, max-workers)
