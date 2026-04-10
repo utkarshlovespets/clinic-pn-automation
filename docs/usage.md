@@ -80,7 +80,7 @@ python fetch_cohorts.py --query all_rajaji_nagar
 ### Stage 1 — Fetch Mastersheet from Google Sheets
 
 ```bash
-python 01_fetch_clinic_mastersheet.py
+python campaign_scripts/01_fetch_clinic_mastersheet.py
 ```
 
 Outputs: `data/clinic_mastersheet.csv`
@@ -88,7 +88,7 @@ Outputs: `data/clinic_mastersheet.csv`
 ### Stage 2 — Generate Priority Exclusions
 
 ```bash
-python 02_generate_priority_exclusions.py --date 25032026 --slot evening
+python campaign_scripts/02_generate_priority_exclusions.py --date 25032026 --slot evening
 ```
 
 Outputs: `outputs/25032026_evening/`
@@ -96,7 +96,7 @@ Outputs: `outputs/25032026_evening/`
 ### Stage 3 — Prepare Campaign Content
 
 ```bash
-python 03_prepare_campaign_content.py --output-dir outputs/25032026_evening
+python campaign_scripts/03_prepare_campaign_content.py --output-dir outputs/25032026_evening
 ```
 
 Enriches the CSVs in the specified output directory.
@@ -105,12 +105,12 @@ Enriches the CSVs in the specified output directory.
 
 Dry-run (preview only):
 ```bash
-python 04_trigger_campaign.py --output-dir outputs/25032026_evening
+python campaign_scripts/04_trigger_campaign.py --output-dir outputs/25032026_evening
 ```
 
 Live run:
 ```bash
-python 04_trigger_campaign.py --output-dir outputs/25032026_evening --live
+python campaign_scripts/04_trigger_campaign.py --output-dir outputs/25032026_evening --live
 ```
 
 ---

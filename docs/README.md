@@ -68,13 +68,13 @@ python run_campaign.py --slot morning --live
 ```
 Google Sheets (campaign config)     MySQL Database (cohort data)
          ↓                                    ↓
-  01_fetch_clinic_mastersheet.py    fetch_cohorts.py
+  campaign_scripts/01_fetch_clinic_mastersheet.py    fetch_cohorts.py
          ↓                                    ↓
-              02_generate_priority_exclusions.py
+              campaign_scripts/02_generate_priority_exclusions.py
                           ↓
-              03_prepare_campaign_content.py
+              campaign_scripts/03_prepare_campaign_content.py
                           ↓
-                  04_trigger_campaign.py
+                  campaign_scripts/04_trigger_campaign.py
                      ↓          ↓
               (Dry-run:       (Live:
              print payloads)  CleverTap API)
@@ -89,10 +89,11 @@ Each stage is a standalone script. The orchestrator `run_campaign.py` runs them 
 ```
 clevertap-automation-pipeline/
 ├── fetch_cohorts.py              # Stage 0: Fetch cohorts from MySQL
-├── 01_fetch_clinic_mastersheet.py   # Stage 1: Fetch config from Google Sheets
-├── 02_generate_priority_exclusions.py  # Stage 2: Apply exclusion logic
-├── 03_prepare_campaign_content.py   # Stage 3: Personalize content & deeplinks
-├── 04_trigger_campaign.py           # Stage 4: Trigger CleverTap API
+├── campaign_scripts/
+│   ├── 01_fetch_clinic_mastersheet.py   # Stage 1: Fetch config from Google Sheets
+│   ├── 02_generate_priority_exclusions.py  # Stage 2: Apply exclusion logic
+│   ├── 03_prepare_campaign_content.py   # Stage 3: Personalize content & deeplinks
+│   └── 04_trigger_campaign.py           # Stage 4: Trigger CleverTap API
 ├── run_campaign.py               # Orchestrator: runs all stages
 ├── utils.py                         # Shared utility functions
 ├── .env                             # Credentials and config (git-ignored)

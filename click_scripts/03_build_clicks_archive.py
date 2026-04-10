@@ -235,9 +235,9 @@ def write_archive(
 
 def main() -> None:
     base_dir = Path(__file__).resolve().parent.parent
-    clicks_dir = base_dir / "data" / "clicks"
+    clicks_dir = base_dir / "outputs" / "log" / "clicks"
     summary_dir = base_dir / "outputs" / "log" / "summary"
-    output_file = base_dir / "data" / "clicks_archive.csv"
+    output_file = base_dir / "outputs" / "log" / "clicks_archive.csv"
 
     if not clicks_dir.exists():
         raise FileNotFoundError(f"Clicks folder not found: {clicks_dir}")

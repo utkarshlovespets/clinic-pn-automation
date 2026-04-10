@@ -87,11 +87,11 @@ Imports and runs Stages 1–4 sequentially via `importlib`. Handles:
 
 Optional. Connects to MySQL and runs SQL files from `data/queries/` to produce cohort CSVs in `data/cohorts/`. Only needed when cohort data needs refreshing from the database. Cohort CSVs can also be provided manually.
 
-### Stage 1 — Fetch Mastersheet (`01_fetch_clinic_mastersheet.py`)
+### Stage 1 — Fetch Mastersheet (`campaign_scripts/01_fetch_clinic_mastersheet.py`)
 
 Authenticates with Google Sheets via OAuth 2.0 and downloads the campaign schedule. The mastersheet defines which cohorts are targeted on which dates, in which slot, and with what message templates.
 
-### Stage 2 — Priority Exclusions (`02_generate_priority_exclusions.py`)
+### Stage 2 — Priority Exclusions (`campaign_scripts/02_generate_priority_exclusions.py`)
 
 The core business logic stage. Applies a two-layer exclusion model:
 
@@ -100,11 +100,11 @@ The core business logic stage. Applies a two-layer exclusion model:
 
 Outputs one CSV per cohort (numbered by priority) plus a `summary.csv` with exclusion statistics.
 
-### Stage 3 — Campaign Content (`03_prepare_campaign_content.py`)
+### Stage 3 — Campaign Content (`campaign_scripts/03_prepare_campaign_content.py`)
 
 Reads per-user data and resolves template placeholders (`{your pet}`, `{your pet's}`, `{pet parent}`) against actual first names and pet names. Constructs deeplink URLs by substituting `{date}` and `{priority}` into URL templates from `data/deeplink_map.csv`.
 
-### Stage 4 — Trigger Campaign (`04_trigger_campaign.py`)
+### Stage 4 — Trigger Campaign (`campaign_scripts/04_trigger_campaign.py`)
 
 Groups users by identical (title, body, deeplinks) tuples, chunks each group into batches of up to 1000 emails, and sends one API request per batch. Runs batches in parallel via `ThreadPoolExecutor`. In live mode, retries failed requests up to 3 times with exponential backoff.
 

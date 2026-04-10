@@ -41,7 +41,7 @@ Each SQL file typically:
 
 ## Stage 1: Fetch Clinic Mastersheet
 
-**File:** `01_fetch_clinic_mastersheet.py`
+**File:** `campaign_scripts/01_fetch_clinic_mastersheet.py`
 
 ### What It Does
 
@@ -79,7 +79,7 @@ Downloads the campaign schedule from a Google Sheets spreadsheet using the Googl
 
 ## Stage 2: Generate Priority Exclusions
 
-**File:** `02_generate_priority_exclusions.py`
+**File:** `campaign_scripts/02_generate_priority_exclusions.py`
 
 ### What It Does
 
@@ -94,7 +94,7 @@ When run via `run_campaign.py`, this stage automatically receives the `--date` a
 
 **Standalone use:** You can also run Stage 2 directly with explicit date/slot:
 ```bash
-python 02_generate_priority_exclusions.py --date 25032026 --slot morning
+python campaign_scripts/02_generate_priority_exclusions.py --date 25032026 --slot morning
 ```
 
 ### Input
@@ -151,7 +151,7 @@ Cohort names are normalized before matching: stripped of apostrophes, lowercased
 
 ## Stage 3: Prepare Campaign Content
 
-**File:** `03_prepare_campaign_content.py`
+**File:** `campaign_scripts/03_prepare_campaign_content.py`
 
 ### What It Does
 
@@ -214,7 +214,7 @@ Evening priority 2 result: `https://supertails.com/pages/clinic?utm_campaign=25M
 
 ## Stage 4: Trigger Campaign
 
-**File:** `04_trigger_campaign.py`
+**File:** `campaign_scripts/04_trigger_campaign.py`
 
 ### What It Does
 

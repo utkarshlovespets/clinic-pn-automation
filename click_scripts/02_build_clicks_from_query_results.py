@@ -96,7 +96,7 @@ def main() -> None:
     base_dir = Path(__file__).resolve().parent.parent
     campaign_file = base_dir / "data" / "utm_campaign.csv"
     query_results_dir = base_dir / "data" / "bigquery_results"
-    clicks_dir = base_dir / "data" / "clicks"
+    clicks_dir = base_dir / "outputs" / "log" / "clicks"
 
     if not campaign_file.exists():
         raise FileNotFoundError(f"Campaign file not found: {campaign_file}")

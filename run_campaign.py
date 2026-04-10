@@ -189,7 +189,7 @@ def run_live_countdown(seconds: int) -> None:
 
 def main() -> None:
     project_root = Path(__file__).resolve().parent
-    campaign_dir = project_root / "campaign"
+    campaign_dir = project_root / "campaign_scripts"
 
     if not campaign_dir.exists():
         raise FileNotFoundError(f"Campaign scripts directory not found: {campaign_dir}")

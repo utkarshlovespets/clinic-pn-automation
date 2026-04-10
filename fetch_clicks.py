@@ -12,7 +12,7 @@ def run_script(script_path: Path) -> None:
 
 def main() -> None:
     repo_root = Path(__file__).resolve().parent
-    scripts_dir = repo_root / "scripts"
+    scripts_dir = repo_root / "click_scripts"
     script_paths = [
         scripts_dir / "01_build_utm_campaign_csv.py",
         scripts_dir / "02_build_clicks_from_query_results.py",
