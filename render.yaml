@@ -113,7 +113,7 @@ services:
     region: singapore
     schedule: "30 3 * * *"
     buildCommand: pip install -r requirements.txt
-    command: python render_cron_trigger.py --slot morning --max-workers 10
+    startCommand: python render_cron_trigger.py --slot morning --max-workers 10
     envVars:
       - key: APP_BASE_URL
         sync: false
@@ -130,7 +130,7 @@ services:
     region: singapore
     schedule: "30 13 * * *"
     buildCommand: pip install -r requirements.txt
-    command: python render_cron_trigger.py --slot evening --max-workers 10
+    startCommand: python render_cron_trigger.py --slot evening --max-workers 10
     envVars:
       - key: APP_BASE_URL
         sync: false
