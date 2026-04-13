@@ -106,6 +106,7 @@ services:
     name: clinic-pn-automation-redis
     plan: starter
     region: singapore
+    ipAllowList: []
   - type: cron
     name: clinic-pn-automation-morning
     runtime: python
