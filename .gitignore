@@ -2,5 +2,4 @@ secrets/
 outputs/
 .env
 __pycache__/
-cohorts/
 clinic_mastersheet.csv

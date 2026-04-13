@@ -43,7 +43,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # -- Constants -----------------------------------------------------------------
 
 BATCH_SIZE = 1000
-MAX_WORKERS_DEFAULT = 30
+MAX_WORKERS_DEFAULT = 10
 LIVE_COUNTDOWN_SECONDS = 10
 LOG_FIELDS = ["timestamp", "email", "utm_name", "clicked", "title", "body"]
 
