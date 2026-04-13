@@ -1,0 +1,142 @@
+services:
+  - type: web
+    name: clinic-pn-automation-web
+    runtime: python
+    plan: starter
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    disk:
+      name: clinic-pn-automation-outputs
+      mountPath: /opt/render/project/src/outputs
+      sizeGB: 5
+    envVars:
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: ENABLE_LIVE_RUNS
+        value: "false"
+      - key: APP_BASE_URL
+        sync: false
+      - key: SPREADSHEET_ID
+        sync: false
+      - key: GOOGLE_CREDENTIALS_B64
+        sync: false
+      - key: GOOGLE_TOKEN_B64
+        sync: false
+      - key: GOOGLE_CREDENTIALS_FILE
+        value: secrets/credentials.json
+      - key: GOOGLE_TOKEN_FILE
+        value: secrets/token.json
+      - key: CLEVERTAP_ACCOUNT_ID
+        sync: false
+      - key: CLEVERTAP_PASSCODE
+        sync: false
+      - key: CLEVERTAP_REGION
+        value: in1
+      - key: CLEVERTAP_CAMPAIGN_ID
+        sync: false
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        value: "3306"
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: CRON_LIVE
+        value: "false"
+      - key: CRON_MAX_WORKERS
+        value: "10"
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: clinic-pn-automation-redis
+          property: connectionString
+      - key: RQ_QUEUE_NAME
+        value: clinic-jobs
+  - type: worker
+    name: clinic-pn-automation-worker
+    runtime: python
+    plan: starter
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: rq worker --url $REDIS_URL $RQ_QUEUE_NAME
+    autoDeployTrigger: commit
+    disk:
+      name: clinic-pn-automation-outputs
+      mountPath: /opt/render/project/src/outputs
+      sizeGB: 5
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: clinic-pn-automation-redis
+          property: connectionString
+      - key: RQ_QUEUE_NAME
+        value: clinic-jobs
+      - key: SPREADSHEET_ID
+        sync: false
+      - key: GOOGLE_CREDENTIALS_B64
+        sync: false
+      - key: GOOGLE_TOKEN_B64
+        sync: false
+      - key: GOOGLE_CREDENTIALS_FILE
+        value: secrets/credentials.json
+      - key: GOOGLE_TOKEN_FILE
+        value: secrets/token.json
+      - key: CLEVERTAP_ACCOUNT_ID
+        sync: false
+      - key: CLEVERTAP_PASSCODE
+        sync: false
+      - key: CLEVERTAP_REGION
+        value: in1
+      - key: CLEVERTAP_CAMPAIGN_ID
+        sync: false
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        value: "3306"
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+  - type: redis
+    name: clinic-pn-automation-redis
+    plan: starter
+    region: singapore
+  - type: cron
+    name: clinic-pn-automation-morning
+    runtime: python
+    plan: starter
+    region: singapore
+    schedule: "30 3 * * *"
+    buildCommand: pip install -r requirements.txt
+    command: python render_cron_trigger.py --slot morning --max-workers 10
+    envVars:
+      - key: APP_BASE_URL
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: CRON_LIVE
+        value: "false"
+      - key: CRON_MAX_WORKERS
+        value: "10"
+  - type: cron
+    name: clinic-pn-automation-evening
+    runtime: python
+    plan: starter
+    region: singapore
+    schedule: "30 13 * * *"
+    buildCommand: pip install -r requirements.txt
+    command: python render_cron_trigger.py --slot evening --max-workers 10
+    envVars:
+      - key: APP_BASE_URL
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: CRON_LIVE
+        value: "false"
+      - key: CRON_MAX_WORKERS
+        value: "10"

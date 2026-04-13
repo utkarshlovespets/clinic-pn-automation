@@ -7,7 +7,7 @@
 ### Install Dependencies
 
 ```bash
-pip install pandas mysql-connector-python google-auth-oauthlib google-auth-httplib2 google-api-python-client requests python-dotenv
+pip install -r requirements.txt
 ```
 
 ### Set Up Credentials
@@ -21,6 +21,50 @@ pip install pandas mysql-connector-python google-auth-oauthlib google-auth-httpl
 ## Running the Full Pipeline
 
 Use `run_campaign.py` to run all stages end-to-end.
+
+If you deploy the web wrapper on Render, you can also trigger the same pipeline from the admin page served by [app.py](../app.py). The page exposes:
+
+- Run Campaign
+- Fetch Clicks
+- Download Clicks Archive
+
+Render cron jobs should call `render_cron_trigger.py`, which sends authenticated requests to the web API so the web service keeps the outputs and archive files on its persistent disk.
+
+---
+
+## Worker Startup Commands (Redis + RQ)
+
+When using the web app (`app.py`), start both the API server and an RQ worker. The worker executes queued campaign/click jobs.
+
+### 1) Start Redis
+
+If Redis is running locally on default port, this can be skipped.
+
+```bash
+redis-server
+```
+
+### 2) Start the FastAPI web app
+
+```bash
+uvicorn app:app --host 0.0.0.0 --port 10000
+```
+
+### 3) Start the RQ worker (in a second terminal)
+
+```bash
+rq worker --url redis://localhost:6379/0 clinic-jobs
+```
+
+### 4) Optional: use environment variables instead of inline values
+
+```bash
+set REDIS_URL=redis://localhost:6379/0
+set RQ_QUEUE_NAME=clinic-jobs
+rq worker --url %REDIS_URL% %RQ_QUEUE_NAME%
+```
+
+On Render, the worker service command is already configured in `render.yaml`.
 
 ### Syntax
 
@@ -203,3 +247,15 @@ Confirm you are on the correct VPN/network that has access to `MYSQL_HOST`. Veri
 Press **Ctrl+C** during the 5-second countdown (before any API calls) to abort safely.
 
 If batches have already started, Ctrl+C will interrupt in-flight threads. Check the dispatch log to see which users were successfully sent.
+
+---
+
+## Render Deployment Quick Notes
+
+1. Deploy the FastAPI web service from [app.py](../app.py).
+2. Deploy a worker service that runs `rq worker --url $REDIS_URL $RQ_QUEUE_NAME`.
+3. Add a managed Redis service and set `REDIS_URL` for web and worker.
+4. Mount persistent storage for `outputs/` so `clicks_archive.csv` and campaign logs survive redeploys.
+5. Set `ADMIN_API_KEY`, `APP_BASE_URL`, `SPREADSHEET_ID`, CleverTap credentials, and Google credential JSON values in Render.
+6. Use `render_cron_trigger.py` in cron jobs for morning and evening scheduled runs.
+7. Keep `ENABLE_LIVE_RUNS=false` until you are ready for live sends.
