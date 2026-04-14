@@ -167,6 +167,25 @@ def run_trigger(
         _sys.argv = original_argv
 
 
+def run_append_summaries(script_dir: Path, date_str: str) -> None:
+    """Import and call script 05's main() to append summaries to DB and log."""
+    import sys as _sys
+    original_argv = _sys.argv[:]
+    _sys.argv = [
+        "05_append_summaries.py",
+        "--date", date_str,
+    ]
+    try:
+        sys.path.insert(0, str(script_dir))
+        import importlib
+        mod = importlib.import_module("05_append_summaries")
+        mod.main()
+    except ImportError as e:
+        print(f"[WARNING] Stage 5 skipped: {e}")
+    finally:
+        _sys.argv = original_argv
+
+
 def parse_date(date_str: str) -> datetime:
     """Parse DDMMYYYY date string."""
     try:
@@ -323,6 +342,13 @@ def main() -> None:
             max_workers=args.max_workers,
             cohorts=args.cohorts,
         )
+
+    # -- Stage 5: Append summaries to DB and log -----------------------------
+    print()
+    print("-" * 72)
+    print(f"Stage 5 -- Appending campaign summaries for {date_str}")
+    print("-" * 72)
+    run_append_summaries(campaign_dir, date_str)
 
     print()
     print("Pipeline complete.")
