@@ -33,7 +33,8 @@ FULL_DISCLAIMER = """
   [WARNING] Running in: {mode}
 
   Stages:
-    {fetch_stage}
+    1. Fetch clinic_mastersheet from Google Sheets (01_fetch_clinic_mastersheet.py)
+    {fetch_cohorts_stage}
     2. Generate priority exclusion CSVs   (02_generate_priority_exclusions.py)
     3. Resolve title / body per user      (03_prepare_campaign_content.py)
     4. Trigger CleverTap campaigns        (04_trigger_campaign.py) [{mode}]
@@ -46,8 +47,9 @@ FULL_DISCLAIMER = """
 
 def print_header(live: bool) -> None:
     mode = "LIVE MODE " if live else "DRY-RUN MODE (default)"
-    fetch_stage = "1. Fetch clinic_mastersheet from Google Sheets  (01_fetch_clinic_mastersheet.py)"
-    print(FULL_DISCLAIMER.format(mode=mode, fetch_stage=fetch_stage))
+    fetch_stage = "1. Fetch clinic_mastersheet from Google Sheets (01_fetch_clinic_mastersheet.py)"
+    fetch_cohorts_stage = "1b. Fetch cohorts from Google Sheets      (00_fetch_cohorts.py) [LIVE ONLY]" if live else "1b. Fetch cohorts from Google Sheets      (00_fetch_cohorts.py) [SKIPPED]"
+    print(FULL_DISCLAIMER.format(mode=mode, fetch_stage=fetch_stage, fetch_cohorts_stage=fetch_cohorts_stage))
 
 
 def run_fetch(script_dir: Path) -> None:
@@ -78,6 +80,24 @@ def run_fetch(script_dir: Path) -> None:
         if result.returncode != 0:
             print("[ERROR] Stage 1 failed. Aborting pipeline.")
             sys.exit(result.returncode)
+
+
+def run_fetch_cohorts(script_dir: Path, live: bool) -> None:
+    """Run script 00_fetch_cohorts.py in live mode only."""
+    if not live:
+        return
+
+    print("-" * 72)
+    print("Stage 1b -- Fetching cohorts (live mode only)...")
+    print("-" * 72)
+    import subprocess
+    result = subprocess.run(
+        [sys.executable, str(script_dir / "00_fetch_cohorts.py")],
+        check=False,
+    )
+    if result.returncode != 0:
+        print("[ERROR] Stage 1b failed. Aborting pipeline.")
+        sys.exit(result.returncode)
 
 
 def run_generate(
@@ -293,6 +313,9 @@ def main() -> None:
 
     # -- Stage 1: Fetch mastersheet ----------------------------------------
     run_fetch(campaign_dir)
+
+    # -- Stage 1b: Fetch cohorts (live mode only) -------------------------
+    run_fetch_cohorts(campaign_dir, live=args.live)
 
     # -- Stage 2: Generate priority exclusion CSVs --------------------------
     run_generate(

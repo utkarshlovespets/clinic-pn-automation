@@ -455,7 +455,6 @@ def main() -> None:
 
     if not recent_files:
         print(f"[WARNING] No summary files found in {SUMMARY_DIR}")
-        append_summary_to_log(run_date, 0)
         print("[INFO] Stage 5 complete.")
         return
 
@@ -481,8 +480,6 @@ def main() -> None:
 
     if total_rows == 0:
         print("[WARNING] No data loaded from summary files")
-
-    append_summary_to_log(run_date, total_rows)
 
     print("[INFO] Stage 5 complete.")
 
