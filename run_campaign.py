@@ -366,12 +366,13 @@ def main() -> None:
             cohorts=args.cohorts,
         )
 
-    # -- Stage 5: Append summaries to DB and log -----------------------------
-    print()
-    print("-" * 72)
-    print(f"Stage 5 -- Appending campaign summaries for {date_str}")
-    print("-" * 72)
-    run_append_summaries(campaign_dir, date_str)
+    # -- Stage 5: Append summaries to DB and log (live run only) --------------------
+    if args.live:
+        print()
+        print("-" * 72)
+        print(f"Stage 5 -- Appending campaign summaries for {date_str}")
+        print("-" * 72)
+        run_append_summaries(campaign_dir, date_str)
 
     print()
     print("Pipeline complete.")

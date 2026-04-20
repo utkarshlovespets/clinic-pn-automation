@@ -24,8 +24,8 @@ import pandas as pd
 from dotenv import dotenv_values
 
 
-QUERIES_DIR = "data/sql_queries"
-COHORTS_DIR = "data/cohorts"
+QUERIES_DIR = "./data/sql_queries"
+COHORTS_DIR = "./data/cohorts"
 
 
 def get_connection(env: dict):
@@ -57,10 +57,11 @@ def run_query(conn, sql: str) -> pd.DataFrame:
 
 def main() -> None:
     script_dir = Path(__file__).resolve().parent
-    env = dotenv_values(script_dir / ".env")
+    project_root = script_dir.parent
+    env = dotenv_values(project_root / ".env")
 
-    queries_dir = (script_dir / QUERIES_DIR).resolve()
-    cohorts_dir = (script_dir / COHORTS_DIR).resolve()
+    queries_dir = (project_root / QUERIES_DIR).resolve()
+    cohorts_dir = (project_root / COHORTS_DIR).resolve()
 
     if not queries_dir.exists():
         print(f"[ERROR] Queries directory not found: {queries_dir}")
