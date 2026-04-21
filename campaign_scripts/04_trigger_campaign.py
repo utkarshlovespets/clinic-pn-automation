@@ -6,7 +6,7 @@ DISCLAIMER: This script defaults to DRY-RUN mode.
     and approved by the team.
 
 Expects 03_prepare_campaign_content.py to have already been run so that
-each priority CSV contains title and body columns.
+each priority CSV contains title, body, and campaign_id columns.
 
 Usage (dry-run, safe default):
     python 04_trigger_campaign.py --output-dir outputs/19032026_morning
@@ -87,7 +87,8 @@ def extract_utm_name(android_deeplink: str, ios_deeplink: str) -> str:
 def build_jobs(
     output_dir: Path,
     cohorts: Optional[Set[str]] = None,
-) -> List[Tuple[str, int, List[str], str, str, str, str, str]]:
+    default_campaign_id: Optional[int] = None,
+) -> List[Tuple[str, int, int, List[str], str, str, str, str, str]]:
     """Build the full list of API call jobs from an output directory.
 
     Reads title and body directly from enriched priority CSVs (produced by
@@ -101,9 +102,12 @@ def build_jobs(
         output_dir: Directory containing priority CSVs and campaign_meta.csv.
         cohorts:    Optional set of cohort names to include. If None, all
                     cohorts are processed.
+        default_campaign_id:
+                    Optional fallback campaign ID from .env used only when
+                    campaign_id is missing in the enriched cohort CSV.
 
     Returns:
-        List of (cohort_name, priority, batch_emails, copy1, copy2,
+        List of (cohort_name, priority, campaign_id, batch_emails, copy1, copy2,
                  android_dl, ios_dl, output_dir_name) tuples in priority order.
 
     Raises:
@@ -178,7 +182,7 @@ def build_jobs(
         return []
 
     output_dir_name = output_dir.name
-    all_jobs: List[Tuple[str, int, List[str], str, str, str, str, str]] = []
+    all_jobs: List[Tuple[str, int, int, List[str], str, str, str, str, str]] = []
 
     for csv_path in csv_files:
         file_meta = summary_map.get(csv_path.name)
@@ -214,6 +218,31 @@ def build_jobs(
                 )
                 break
         else:
+            # campaign_id is expected to be constant for each cohort CSV.
+            campaign_id_raw = str(users_df["campaign_id"].iloc[0]).strip() \
+                if "campaign_id" in users_df.columns else ""
+            if campaign_id_raw:
+                try:
+                    campaign_id = int(campaign_id_raw)
+                except ValueError:
+                    print(
+                        f"  [WARNING] {csv_path.name}: invalid campaign_id "
+                        f"{campaign_id_raw!r} -- skipping."
+                    )
+                    continue
+            elif default_campaign_id is not None:
+                campaign_id = default_campaign_id
+                print(
+                    f"  [INFO] {csv_path.name}: campaign_id missing, using "
+                    f"default CLEVERTAP_CAMPAIGN_ID={default_campaign_id}."
+                )
+            else:
+                print(
+                    f"  [WARNING] {csv_path.name}: missing campaign_id column/value and "
+                    "no CLEVERTAP_CAMPAIGN_ID fallback set -- skipping."
+                )
+                continue
+
             # Deeplinks are per-cohort -- same value for every row in this file.
             android_dl = str(users_df["android_deeplink"].iloc[0]).strip() \
                 if "android_deeplink" in users_df.columns else ""
@@ -235,7 +264,7 @@ def build_jobs(
                 for i in range(0, len(emails), BATCH_SIZE):
                     batch = emails[i : i + BATCH_SIZE]
                     all_jobs.append((
-                        cohort_name, priority, batch, copy1, copy2,
+                        cohort_name, priority, campaign_id, batch, copy1, copy2,
                         android_dl, ios_dl, output_dir_name,
                     ))
 
@@ -245,10 +274,9 @@ def build_jobs(
 # -- API call ------------------------------------------------------------------
 
 def send_request(
-    job: Tuple[str, int, List[str], str, str, str, str, str],
+    job: Tuple[str, int, int, List[str], str, str, str, str, str],
     headers: dict,
     url: str,
-    campaign_id: int,
     dry_run: bool,
     previewed_cohorts: Optional[Set[str]] = None,
     previewed_lock: Optional[Lock] = None,
@@ -256,11 +284,11 @@ def send_request(
     """Send (or mock-send) a single batch API call to CleverTap.
 
     Args:
-        job:               (cohort_name, priority, batch_emails, copy1, copy2,
-                            android_deeplink, ios_deeplink, output_dir_name)
+        job:               (cohort_name, priority, campaign_id, batch_emails,
+                            copy1, copy2, android_deeplink, ios_deeplink,
+                            output_dir_name)
         headers:           CleverTap auth headers.
         url:               External Trigger API endpoint.
-        campaign_id:       Integer campaign ID from .env.
         dry_run:           If True, print payload instead of making HTTP request.
         previewed_cohorts: Shared set of cohort names whose payload has already
                            been printed (one preview per cohort in dry-run).
@@ -269,7 +297,7 @@ def send_request(
     Returns:
         Human-readable result string.
     """
-    cohort_name, priority, emails, copy1, copy2, android_dl, ios_dl, _ = job
+    cohort_name, priority, campaign_id, emails, copy1, copy2, android_dl, ios_dl, _ = job
 
     ext_trigger = {"title": copy1, "body": copy2}
     if android_dl:
@@ -283,7 +311,7 @@ def send_request(
         "ExternalTrigger": ext_trigger,
     }
 
-    label = f"[P{priority:02d} | {cohort_name} | {len(emails)} email(s)]"
+    label = f"[P{priority:02d} | {cohort_name} | CID {campaign_id} | {len(emails)} email(s)]"
 
     if dry_run:
         # Print the full payload only once per cohort; subsequent batches just
@@ -332,7 +360,6 @@ def run_parallel(
     jobs: List[Tuple],
     headers: dict,
     url: str,
-    campaign_id: int,
     dry_run: bool,
     max_workers: int = MAX_WORKERS_DEFAULT,
     log_dir: Optional[Path] = None,
@@ -363,7 +390,7 @@ def run_parallel(
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
-                send_request, job, headers, url, campaign_id, dry_run,
+                send_request, job, headers, url, dry_run,
                 previewed_cohorts, previewed_lock,
             ): job
             for job in jobs
@@ -383,7 +410,7 @@ def run_parallel(
             else:
                 print(result_str)
 
-            cohort_name, priority, emails, copy1, copy2, android_dl, ios_dl, output_dir_name = job
+            cohort_name, priority, _campaign_id, emails, copy1, copy2, android_dl, ios_dl, output_dir_name = job
             utm_name = extract_utm_name(android_dl, ios_dl)
 
             ts = datetime.now().isoformat(timespec="seconds")
@@ -503,6 +530,7 @@ def main() -> None:
     account_id = (env.get("CLEVERTAP_ACCOUNT_ID") or "").strip()
     passcode = (env.get("CLEVERTAP_PASSCODE") or "").strip()
     campaign_id_str = (env.get("CLEVERTAP_CAMPAIGN_ID") or "").strip()
+    default_campaign_id: Optional[int] = None
 
     if not account_id or not passcode:
         print(
@@ -510,15 +538,12 @@ def main() -> None:
         )
         sys.exit(1)
 
-    if not campaign_id_str:
-        print("[ERROR] CLEVERTAP_CAMPAIGN_ID must be set in .env")
-        sys.exit(1)
-
-    try:
-        campaign_id = int(campaign_id_str)
-    except ValueError:
-        print(f"[ERROR] CLEVERTAP_CAMPAIGN_ID must be an integer, got: {campaign_id_str!r}")
-        sys.exit(1)
+    if campaign_id_str:
+        try:
+            default_campaign_id = int(campaign_id_str)
+        except ValueError:
+            print(f"[ERROR] CLEVERTAP_CAMPAIGN_ID must be an integer, got: {campaign_id_str!r}")
+            sys.exit(1)
 
     url = f"https://{region}.api.clevertap.com/2/send/externaltrigger.json"
     headers = {
@@ -553,7 +578,13 @@ def main() -> None:
     log_dir = (project_root / "outputs" / "log").resolve()
     mode_log_dir = log_dir / ("dry_run" if dry_run else "live")
 
-    print(f"Campaign ID  : {campaign_id}")
+    if default_campaign_id is None:
+        print("Campaign ID  : per cohort (from campaign_id column)")
+    else:
+        print(
+            "Campaign ID  : per cohort (from campaign_id column) "
+            f"| fallback default: {default_campaign_id}"
+        )
     print(f"API endpoint : {url}")
     print(f"Mode         : {'LIVE' if not dry_run else 'DRY-RUN'}")
     print(f"Max workers  : {args.max_workers}")
@@ -570,7 +601,7 @@ def main() -> None:
             continue
         print(f"Building jobs from: {output_dir.name}")
         try:
-            jobs = build_jobs(output_dir, cohorts_filter)
+            jobs = build_jobs(output_dir, cohorts_filter, default_campaign_id)
             all_jobs.extend(jobs)
         except (FileNotFoundError, ValueError) as exc:
             print(f"[WARNING] {output_dir.name}: {exc}")
@@ -580,7 +611,7 @@ def main() -> None:
         sys.exit(0)
 
     # -- Dispatch --------------------------------------------------------------
-    run_parallel(all_jobs, headers, url, campaign_id, dry_run, args.max_workers, log_dir)
+    run_parallel(all_jobs, headers, url, dry_run, args.max_workers, log_dir)
 
     print()
     if dry_run:

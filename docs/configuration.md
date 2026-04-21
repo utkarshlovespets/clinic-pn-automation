@@ -16,7 +16,7 @@ GOOGLE_TOKEN_FILE=token.json
 CLEVERTAP_ACCOUNT_ID=<your-account-id>
 CLEVERTAP_PASSCODE=<your-passcode>
 CLEVERTAP_REGION=in1
-CLEVERTAP_CAMPAIGN_ID=<your-campaign-id>
+CLEVERTAP_CAMPAIGN_ID=<optional-default-campaign-id>
 
 # ── MySQL (only needed for Stage 0) ───────────────────────────────────────────
 MYSQL_HOST=<your-mysql-host>
@@ -35,7 +35,7 @@ MYSQL_PASSWORD=<your-password>
 | `CLEVERTAP_ACCOUNT_ID` | Stage 4 | CleverTap account identifier |
 | `CLEVERTAP_PASSCODE` | Stage 4 | CleverTap API passcode |
 | `CLEVERTAP_REGION` | Stage 4 | CleverTap regional endpoint (e.g., `in1` for India) |
-| `CLEVERTAP_CAMPAIGN_ID` | Stage 4 | Campaign ID for the External Trigger |
+| `CLEVERTAP_CAMPAIGN_ID` | Stage 4 | Optional fallback campaign ID when a cohort row is missing `campaign_id` |
 | `MYSQL_HOST` | Stage 0 | Hostname of the analytics database |
 | `MYSQL_PORT` | Stage 0 | MySQL port (default: 3306) |
 | `MYSQL_USER` | Stage 0 | MySQL username |
@@ -77,7 +77,7 @@ The pipeline reads from the sheet tab named **`Clinic_PN_Automation`** (falls ba
 
 1. Log in to your CleverTap dashboard
 2. Navigate to **Settings → Passcode** to get your `CLEVERTAP_ACCOUNT_ID` and `CLEVERTAP_PASSCODE`
-3. Create or identify an **External Trigger campaign** and note its `CLEVERTAP_CAMPAIGN_ID`
+3. Create or identify the **External Trigger campaigns** and store each campaign ID in `data/deeplink_map.csv` (`campaign_id` column)
 4. Set `CLEVERTAP_REGION` to match your account region:
    - `in1` — India
    - `us1` — United States
@@ -95,6 +95,7 @@ Maps each cohort name to its cohort data file and deeplink URL templates.
 | Column | Description |
 |---|---|
 | `Cohort Name` | Exact cohort name as used in the mastersheet |
+| `campaign_id` | CleverTap External Trigger campaign ID for this cohort |
 | `cohort_dataset` | Filename (without path) of the cohort CSV in `data/cohorts/` |
 | `android_base_url` | Android deeplink URL template |
 | `ios_base_url` | iOS deeplink URL template |
@@ -109,8 +110,8 @@ URLs can contain these substitution tokens:
 ### Example Entry
 
 ```csv
-Cohort Name,cohort_dataset,android_base_url,ios_base_url
-Clinic_Vaccination_Due,vaccination_due.csv,https://supertails.com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC,supertails-com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC
+Cohort Name,campaign_id,cohort_dataset,android_base_url,ios_base_url
+Clinic_Vaccination_Due,1774333510,vaccination_due.csv,https://supertails.com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC,supertails-com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC
 ```
 
 ---

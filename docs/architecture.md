@@ -57,7 +57,7 @@ This design makes it easy to:
                           ▼
            outputs/{date}_{slot}/
              └── NN_Cohort.csv  (enriched with
-                                 title, body, deeplinks)
+                                 title, body, campaign_id, deeplinks)
                           │
                           ▼
            ┌───────────────────────────┐
@@ -102,11 +102,11 @@ Outputs one CSV per cohort (numbered by priority) plus a `summary.csv` with excl
 
 ### Stage 3 — Campaign Content (`campaign_scripts/03_prepare_campaign_content.py`)
 
-Reads per-user data and resolves template placeholders (`{your pet}`, `{your pet's}`, `{pet parent}`) against actual first names and pet names. Constructs deeplink URLs by substituting `{date}` and `{priority}` into URL templates from `data/deeplink_map.csv`.
+Reads per-user data and resolves template placeholders (`{your pet}`, `{your pet's}`, `{pet parent}`) against actual first names and pet names. Constructs deeplink URLs by substituting `{date}` and `{priority}` into URL templates from `data/deeplink_map.csv`, and copies cohort-level `campaign_id` into each enriched row.
 
 ### Stage 4 — Trigger Campaign (`campaign_scripts/04_trigger_campaign.py`)
 
-Groups users by identical (title, body, deeplinks) tuples, chunks each group into batches of up to 1000 emails, and sends one API request per batch. Runs batches in parallel via `ThreadPoolExecutor`. In live mode, retries failed requests up to 3 times with exponential backoff.
+Groups users by identical (title, body, deeplinks, campaign_id) tuples, chunks each group into batches of up to 1000 emails, and sends one API request per batch. Runs batches in parallel via `ThreadPoolExecutor`. In live mode, retries failed requests up to 3 times with exponential backoff.
 
 ---
 

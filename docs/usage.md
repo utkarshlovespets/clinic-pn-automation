@@ -125,7 +125,7 @@ When running in dry-run mode, Stage 4 prints a sample of what would be sent:
   Sample payload:
   {
     "to": {"email": ["user1@example.com", "user2@example.com", ...]},
-    "campaign_id_list": [1774333510],
+    "campaign_id_list": [<campaign_id_for_that_cohort>],
     "ExternalTrigger": {
       "title": "Traffic jam? But vet visits > 🚗",
       "body": "Skip the chaos. Get 25% OFF at Supertails+ Clinic...",

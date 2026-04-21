@@ -24,11 +24,12 @@ Fetched from Google Sheets by Stage 1. Defines the campaign schedule.
 
 ### `data/deeplink_map.csv`
 
-Maps cohort names to their data files and URL templates.
+Maps cohort names to their data files, CleverTap campaign IDs, and URL templates.
 
 | Column | Type | Description |
 |---|---|---|
 | `Cohort Name` | string | Cohort identifier (matches mastersheet) |
+| `campaign_id` | string | CleverTap External Trigger campaign ID for this cohort |
 | `cohort_dataset` | string | Cohort CSV filename in `data/cohorts/` |
 | `android_base_url` | string | Android deeplink URL (may contain `{date}`, `{priority}` tokens) |
 | `ios_base_url` | string | iOS deeplink URL (may contain `{date}`, `{priority}` tokens) |
@@ -125,6 +126,7 @@ Same files as Stage 2 output, with additional columns added in-place.
 | `Pet Name` | string | Pet's name |
 | `title` | string | Resolved notification title (personalized) |
 | `body` | string | Resolved notification body (personalized) |
+| `campaign_id` | string | Campaign ID copied from `deeplink_map.csv` for this cohort |
 | `android_deeplink` | string | Final Android URL (date and slot-tagged priority substituted) |
 | `ios_deeplink` | string | Final iOS URL (date and slot-tagged priority substituted) |
 

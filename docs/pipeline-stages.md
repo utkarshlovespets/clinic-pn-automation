@@ -223,7 +223,7 @@ Sends push notifications by calling the CleverTap External Trigger API. Reads en
 ### Input
 
 - `outputs/{DDMMYYYY}_{slot}/NN_CohortName.csv` (enriched)
-- `.env` — `CLEVERTAP_ACCOUNT_ID`, `CLEVERTAP_PASSCODE`, `CLEVERTAP_REGION`, `CLEVERTAP_CAMPAIGN_ID`
+- `.env` — `CLEVERTAP_ACCOUNT_ID`, `CLEVERTAP_PASSCODE`, `CLEVERTAP_REGION`, optional `CLEVERTAP_CAMPAIGN_ID` fallback
 
 ### Output
 
@@ -236,7 +236,7 @@ Sends push notifications by calling the CleverTap External Trigger API. Reads en
   "to": {
     "email": ["user1@example.com", "user2@example.com"]
   },
-  "campaign_id_list": [1774333510],
+  "campaign_id_list": ["<campaign_id_for_this_cohort>"],
   "ExternalTrigger": {
     "title": "Personalized title here",
     "body": "Personalized body here",

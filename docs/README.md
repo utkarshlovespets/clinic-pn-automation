@@ -99,7 +99,7 @@ clevertap-automation-pipeline/
 ├── .env                             # Credentials and config (git-ignored)
 ├── data/
 │   ├── clinic_mastersheet.csv       # Campaign schedule (from Google Sheets)
-│   ├── deeplink_map.csv             # Cohort → deeplink URL mapping
+│   ├── deeplink_map.csv             # Cohort → campaign_id + deeplink URL mapping
 │   ├── cohorts/                     # User lists per cohort segment
 │   └── queries/                     # SQL files for cohort extraction
 ├── outputs/

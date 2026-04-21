@@ -289,8 +289,10 @@ def main() -> None:
         "--deeplink-map",
         default="data/deeplink_map.csv",
         help=(
-            "Path to deeplink_map.csv (columns: Cohort Name, android_base_url, ios_base_url). "
-            "Stage 3 appends android_deeplink and ios_deeplink columns when this file exists. "
+            "Path to deeplink_map.csv "
+            "(columns: Cohort Name, campaign_id, android_base_url, ios_base_url). "
+            "Stage 3 appends campaign_id, android_deeplink, and ios_deeplink columns "
+            "when this file exists. "
             "(default: data/deeplink_map.csv)"
         ),
     )
