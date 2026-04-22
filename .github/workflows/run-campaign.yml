@@ -2,17 +2,22 @@ name: Run Campaign Pipeline
 
 on:
   schedule:
-    # 11:30 AM IST → 06:00 UTC (Morning slot)
+    # 11:30 AM IST → 06:00 UTC (Morning)
     - cron: '0 6 * * *'
 
-    # 5:00 PM IST → 11:30 UTC (Evening slot)
+    # 5:00 PM IST → 11:30 UTC (Evening)
     - cron: '30 11 * * *'
 
   workflow_dispatch:
+    inputs:
+      slot:
+        description: 'Choose slot to run'
+        required: true
+        default: 'morning'
 
 jobs:
   run-morning:
-    if: github.event.schedule == '0 6 * * *'
+    if: github.event_name == 'schedule' && github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.slot == 'morning')
     runs-on: ubuntu-latest
 
     steps:
@@ -43,7 +48,7 @@ jobs:
 
 
   run-evening:
-    if: github.event.schedule == '30 11 * * *'
+    if: github.event_name == 'schedule' && github.event.schedule == '30 11 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.slot == 'evening')
     runs-on: ubuntu-latest
 
     steps:
