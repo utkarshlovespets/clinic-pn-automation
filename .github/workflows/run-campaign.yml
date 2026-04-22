@@ -1,0 +1,73 @@
+name: Run Campaign Pipeline
+
+on:
+  schedule:
+    # 11:30 AM IST → 06:00 UTC (Morning slot)
+    - cron: '0 6 * * *'
+
+    # 5:00 PM IST → 11:30 UTC (Evening slot)
+    - cron: '30 11 * * *'
+
+  workflow_dispatch:
+
+jobs:
+  run-morning:
+    if: github.event.schedule == '0 6 * * *'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+
+      - name: Create credentials.json
+        run: |
+          mkdir -p secret
+          echo '${{ secrets.GOOGLE_CREDENTIALS }}' > secret/credentials.json
+
+      - name: Create token.json
+        run: echo '${{ secrets.GOOGLE_TOKEN }}' > secret/token.json
+
+      - name: Run morning campaign
+        run: python run_campaign.py --slot morning
+
+
+  run-evening:
+    if: github.event.schedule == '30 11 * * *'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+
+      - name: Create credentials.json
+        run: |
+          mkdir -p secret
+          echo '${{ secrets.GOOGLE_CREDENTIALS }}' > secret/credentials.json
+
+      - name: Create token.json
+        run: echo '${{ secrets.GOOGLE_TOKEN }}' > secret/token.json
+
+      - name: Run evening campaign
+        run: python run_campaign.py --slot evening

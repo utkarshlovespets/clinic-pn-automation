@@ -310,6 +310,15 @@ def main() -> None:
 
     run_date = args.date if args.date else datetime.now()
     date_str = run_date.strftime("%d%m%Y")
+    display_date = run_date.strftime("%d/%m/%Y")
+    using_default_today = args.date is None
+    raw_output_base = Path(args.output_dir)
+    output_base = (
+        raw_output_base
+        if raw_output_base.is_absolute()
+        else (project_root / raw_output_base).resolve()
+    )
+    output_base.mkdir(parents=True, exist_ok=True)
 
     print_header(live=args.live)
 
@@ -324,23 +333,29 @@ def main() -> None:
         campaign_dir,
         clinic_csv=args.clinic_csv,
         cohort_map=args.cohort_map,
-        output_dir=args.output_dir,
+        output_dir=str(output_base),
         date_str=date_str,
         slot=args.slot,
     )
 
     # -- Stages 3 + 4: Prepare content then trigger campaigns per slot ---------
     slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
+    processed_slots = 0
 
     for slot in slots:
-        slot_dir = str(Path(args.output_dir) / f"{date_str}_{slot}")
-        slot_dir_full = (project_root / slot_dir).resolve()
+        slot_dir_full = output_base / f"{date_str}_{slot}"
 
         if not slot_dir_full.exists():
-            print(
-                f"  [WARNING] Output directory not found: {slot_dir_full}\n"
-                "  Stage 2 may not have found data for this date/slot -- skipping."
-            )
+            if using_default_today:
+                print(
+                    f"  [INFO] No data found in mastersheet for current date {display_date} "
+                    f"({slot} slot) -- skipping."
+                )
+            else:
+                print(
+                    f"  [INFO] No data found in mastersheet for requested date {display_date} "
+                    f"({slot} slot) -- skipping."
+                )
             continue
 
         # -- Stage 3: Resolve title / body per user + deeplinks ----------
@@ -367,14 +382,20 @@ def main() -> None:
             max_workers=args.max_workers,
             cohorts=args.cohorts,
         )
+        processed_slots += 1
 
     # -- Stage 5: Append summaries to DB and log (live run only) --------------------
-    if args.live:
+    if args.live and processed_slots > 0:
         print()
         print("-" * 72)
         print(f"Stage 5 -- Appending campaign summaries for {date_str}")
         print("-" * 72)
         run_append_summaries(campaign_dir, date_str)
+    elif args.live and processed_slots == 0:
+        print(
+            f"[INFO] No slots had data for {display_date}. "
+            "Skipping Stage 5 summary append."
+        )
 
     print()
     print("Pipeline complete.")

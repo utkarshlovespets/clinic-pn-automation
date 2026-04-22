@@ -301,6 +301,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
                 df["campaign_id"] = ""
                 df["android_deeplink"] = ""
                 df["ios_deeplink"] = ""
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
             df.to_csv(csv_path, index=False)
             cols = "title/body" + ("/campaign_id/deeplinks" if use_deeplinks else "")
             print(f"  {csv_path.name}: 0 rows -- written with empty {cols}.")
@@ -336,6 +337,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
             df["android_deeplink"] = android_deeplink
             df["ios_deeplink"] = ios_deeplink
 
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(csv_path, index=False)
 
         generic_rows = len(df) - named_rows

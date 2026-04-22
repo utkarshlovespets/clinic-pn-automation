@@ -351,6 +351,7 @@ def save_summary_log(entries: dict[str, str]) -> None:
     """Save summary log entries, sorted by date descending."""
     log_path = get_project_root() / SUMMARY_LOG
     try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(log_path, 'w', encoding='utf-8') as f:
             for date_str in sorted(entries.keys(), reverse=True):
                 f.write(f"{date_str}: {entries[date_str]}\n")
