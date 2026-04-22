@@ -1,6 +1,5 @@
+__pycache__/
+cohorts/
 secrets/
 outputs/
 .env
-__pycache__/
-clinic_mastersheet.csv
-cohorts/
