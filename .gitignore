@@ -3,3 +3,4 @@ cohorts/
 secrets/
 outputs/
 .env
+clinic_mastersheet.csv
