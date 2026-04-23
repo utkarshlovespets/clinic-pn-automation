@@ -41,11 +41,8 @@ jobs:
       - name: Create token.json
         run: echo '${{ secrets.GOOGLE_TOKEN }}' > token.json
 
-      - name: Fetch cohorts data
-        run: python campaign_scripts/00_fetch_cohorts.py
-
       - name: Run morning campaign
-        run: python run_campaign.py --slot morning
+        run: python run_campaign.py --slot morning --live
 
 
   run-evening:
