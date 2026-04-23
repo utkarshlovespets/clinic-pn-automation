@@ -24,6 +24,9 @@ import time
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pandas as pd
 
 LIVE_COUNTDOWN_SECONDS = 10
 
@@ -216,6 +219,52 @@ def parse_date(date_str: str) -> datetime:
         )
 
 
+def is_default_or_live_only_run(raw_argv: list[str]) -> bool:
+    """Return True only for no flags or only '--live'."""
+    return len(raw_argv) == 0 or raw_argv == ["--live"]
+
+
+def resolve_ist_now() -> datetime:
+    """Return current time in IST regardless of machine locale."""
+    return datetime.now(ZoneInfo("Asia/Kolkata"))
+
+
+def infer_slot_from_ist_now(now_ist: datetime) -> str:
+    """Before 14:00 IST = morning, 14:00 IST and later = evening."""
+    return "morning" if now_ist.hour < 14 else "evening"
+
+
+def has_slot_data_in_mastersheet(
+    clinic_csv_path: Path,
+    run_date: datetime,
+    slot: str,
+) -> bool:
+    """Check if mastersheet has at least one usable row for date + slot."""
+    if not clinic_csv_path.exists():
+        raise FileNotFoundError(f"clinic_mastersheet not found: {clinic_csv_path}")
+
+    df = pd.read_csv(clinic_csv_path, dtype=str, keep_default_na=False)
+    required = {"Date", "Slot", "Cohort Name", "Title", "Content"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            "clinic_mastersheet is missing required columns for auto-slot check: "
+            f"{sorted(missing)}"
+        )
+
+    df["_date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
+    df["_slot"] = df["Slot"].fillna("").str.strip().str.lower()
+    target_date = pd.Timestamp(run_date.date())
+
+    usable = (
+        df["_date"].eq(target_date)
+        & df["_slot"].eq(slot)
+        & df["Cohort Name"].str.strip().ne("")
+        & ~(df["Title"].str.strip().eq("") & df["Content"].str.strip().eq(""))
+    )
+    return bool(usable.any())
+
+
 def run_live_countdown(seconds: int) -> None:
     """Show a visible line-by-line countdown before live triggering."""
     print()
@@ -229,6 +278,7 @@ def run_live_countdown(seconds: int) -> None:
 def main() -> None:
     project_root = Path(__file__).resolve().parent
     campaign_dir = project_root / "campaign_scripts"
+    raw_argv = sys.argv[1:]
 
     if not campaign_dir.exists():
         raise FileNotFoundError(f"Campaign scripts directory not found: {campaign_dir}")
@@ -308,7 +358,20 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    run_date = args.date if args.date else datetime.now()
+    auto_slot_mode = is_default_or_live_only_run(raw_argv)
+    inferred_slot: Optional[str] = None
+    if auto_slot_mode:
+        ist_now = resolve_ist_now()
+        inferred_slot = infer_slot_from_ist_now(ist_now)
+        print(
+            "[INFO] Auto-slot mode active (no flags or only --live): "
+            f"{ist_now.strftime('%d/%m/%Y %H:%M:%S')} IST -> {inferred_slot}."
+        )
+        # In auto-slot mode, today's date must be computed in IST.
+        run_date = ist_now
+        args.slot = inferred_slot
+    else:
+        run_date = args.date if args.date else datetime.now()
     date_str = run_date.strftime("%d%m%Y")
     display_date = run_date.strftime("%d/%m/%Y")
     using_default_today = args.date is None
@@ -324,6 +387,25 @@ def main() -> None:
 
     # -- Stage 1: Fetch mastersheet ----------------------------------------
     run_fetch(campaign_dir)
+
+    # Auto-slot guard: only proceed if today's inferred IST slot exists in mastersheet.
+    if auto_slot_mode and inferred_slot is not None:
+        raw_clinic_path = Path(args.clinic_csv)
+        clinic_path = (
+            raw_clinic_path
+            if raw_clinic_path.is_absolute()
+            else (project_root / raw_clinic_path).resolve()
+        )
+        if not has_slot_data_in_mastersheet(clinic_path, run_date, inferred_slot):
+            print(
+                f"[INFO] Auto-slot check: no mastersheet data for {display_date} "
+                f"({inferred_slot} slot). Exiting without running pipeline stages."
+            )
+            return
+        print(
+            f"[INFO] Auto-slot check: mastersheet has data for {display_date} "
+            f"({inferred_slot} slot). Continuing."
+        )
 
     # -- Stage 1b: Fetch cohorts (live mode only) -------------------------
     run_fetch_cohorts(campaign_dir, live=args.live)

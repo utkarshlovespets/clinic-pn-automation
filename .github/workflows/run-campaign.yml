@@ -1,23 +1,18 @@
-name: Run Campaign Pipeline
+name: Run Campaign Pipeline (Live)
 
 on:
   schedule:
-    # 11:30 AM IST → 06:00 UTC (Morning)
-    - cron: '0 6 * * *'
+    # 11:00 AM IST → 05:30 UTC (Morning)
+    - cron: '30 5 * * *'
 
     # 5:00 PM IST → 11:30 UTC (Evening)
     - cron: '30 11 * * *'
 
   workflow_dispatch:
-    inputs:
-      slot:
-        description: 'Choose slot to run'
-        required: true
-        default: 'morning'
 
 jobs:
   run-morning:
-    if: github.event_name == 'schedule' && github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.slot == 'morning')
+    if: always()
     runs-on: ubuntu-latest
 
     steps:
@@ -41,12 +36,15 @@ jobs:
       - name: Create token.json
         run: echo '${{ secrets.GOOGLE_TOKEN }}' > token.json
 
-      - name: Run morning campaign
-        run: python run_campaign.py --slot morning --live
+      - name: Set date variable (IST)
+        run: echo "TODAY=$(TZ='Asia/Kolkata' date +'%d%m%Y')" >> $GITHUB_ENV
+
+      - name: Run morning campaign (LIVE)
+        run: python run_campaign.py --slot morning --date $TODAY
 
 
   run-evening:
-    if: github.event_name == 'schedule' && github.event.schedule == '30 11 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.slot == 'evening')
+    if: always()
     runs-on: ubuntu-latest
 
     steps:
@@ -70,5 +68,8 @@ jobs:
       - name: Create token.json
         run: echo '${{ secrets.GOOGLE_TOKEN }}' > token.json
 
-      - name: Run evening campaign
-        run: python run_campaign.py --slot evening
+      - name: Set date variable (IST)
+        run: echo "TODAY=$(TZ='Asia/Kolkata' date +'%d%m%Y')" >> $GITHUB_ENV
+
+      - name: Run evening campaign (LIVE)
+        run: python run_campaign.py --slot evening --date $TODAY
