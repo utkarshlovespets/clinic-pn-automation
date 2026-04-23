@@ -1,7 +1,5 @@
 __pycache__/
-cohorts/
 secrets/
 outputs/
 .env
 clinic_mastersheet.csv
-!test.py
