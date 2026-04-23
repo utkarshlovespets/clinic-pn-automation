@@ -27,6 +27,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import requests
+from dotenv import dotenv_values
 
 LIVE_COUNTDOWN_SECONDS = 10
 
@@ -46,6 +48,7 @@ FULL_DISCLAIMER = """
   and approved.  All dry-run output is safe to inspect freely.
 ================================================================================
 """
+SLACK_DEFAULT_API_URL = "https://slack.com/api/chat.postMessage"
 
 
 def print_header(live: bool) -> None:
@@ -331,6 +334,66 @@ def run_live_countdown(seconds: int) -> None:
     print("  Proceeding now.")
 
 
+def send_pipeline_slack_message(
+    project_root: Path,
+    status: str,
+    date_text: str,
+    slot: str,
+    live: bool,
+    error_message: Optional[str] = None,
+) -> None:
+    """Send one Slack notification for pipeline completion status."""
+    env = dotenv_values(project_root / ".env")
+    api_url = str(env.get("DEFAULT_SLACK_API_URL") or SLACK_DEFAULT_API_URL).strip()
+    channel = str(env.get("DEFAULT_SLACK_CHANNEL") or "").strip()
+    token = str(env.get("SLACK_API_TOKEN") or "").strip()
+
+    if not channel or not token:
+        print(
+            "[WARNING] Slack notification skipped: "
+            "missing DEFAULT_SLACK_CHANNEL or SLACK_API_TOKEN in .env."
+        )
+        return
+
+    status_tag = "SUCCESS" if status.upper() == "SUCCESS" else "FAILED"
+    slot_text = slot.capitalize()
+    mode_text = "Live" if live else "Dry-Run"
+    text = f"[{status_tag}] | Clinic PN Campaign | {date_text} | {slot_text} | {mode_text}"
+    if error_message and status_tag == "FAILED":
+        compact_error = " ".join(str(error_message).split())[:180]
+        text = f"{text} | {compact_error}"
+
+    try:
+        response = requests.post(
+            api_url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json; charset=utf-8",
+            },
+            json={
+                "channel": channel,
+                "text": text,
+            },
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        print(f"[WARNING] Slack notification failed to send: {exc}")
+        return
+
+    ok = False
+    error = ""
+    try:
+        payload = response.json()
+        ok = bool(payload.get("ok"))
+        error = str(payload.get("error") or "")
+    except ValueError:
+        payload = {}
+
+    if response.status_code >= 400 or not ok:
+        detail = error or f"HTTP {response.status_code}"
+        print(f"[WARNING] Slack notification failed: {detail}")
+
+
 def main() -> None:
     project_root = Path(__file__).resolve().parent
     campaign_dir = project_root / "campaign_scripts"
@@ -439,112 +502,135 @@ def main() -> None:
     )
     output_base.mkdir(parents=True, exist_ok=True)
 
-    print_header(live=args.live)
+    status = "SUCCESS"
+    failure_message: Optional[str] = None
 
-    # -- Stage 1: Fetch mastersheet ----------------------------------------
-    run_fetch(campaign_dir)
+    try:
+        print_header(live=args.live)
 
-    # Auto-slot guard: only proceed if today's inferred IST slot exists in mastersheet.
-    raw_clinic_path = Path(args.clinic_csv)
-    clinic_path = (
-        raw_clinic_path
-        if raw_clinic_path.is_absolute()
-        else (project_root / raw_clinic_path).resolve()
-    )
+        # -- Stage 1: Fetch mastersheet ----------------------------------------
+        run_fetch(campaign_dir)
 
-    # Global guard: for the running date, every row must have both title and body.
-    validate_title_body_for_run_date(clinic_path, run_date)
+        # Auto-slot guard: only proceed if today's inferred IST slot exists in mastersheet.
+        raw_clinic_path = Path(args.clinic_csv)
+        clinic_path = (
+            raw_clinic_path
+            if raw_clinic_path.is_absolute()
+            else (project_root / raw_clinic_path).resolve()
+        )
 
-    if auto_slot_mode and inferred_slot is not None:
-        if not has_slot_data_in_mastersheet(clinic_path, run_date, inferred_slot):
+        # Global guard: for the running date, every row must have both title and body.
+        validate_title_body_for_run_date(clinic_path, run_date)
+
+        if auto_slot_mode and inferred_slot is not None:
+            if not has_slot_data_in_mastersheet(clinic_path, run_date, inferred_slot):
+                print(
+                    f"[INFO] Auto-slot check: no mastersheet data for {display_date} "
+                    f"({inferred_slot} slot). Exiting without running pipeline stages."
+                )
+                return
             print(
-                f"[INFO] Auto-slot check: no mastersheet data for {display_date} "
-                f"({inferred_slot} slot). Exiting without running pipeline stages."
+                f"[INFO] Auto-slot check: mastersheet has data for {display_date} "
+                f"({inferred_slot} slot). Continuing."
             )
-            return
-        print(
-            f"[INFO] Auto-slot check: mastersheet has data for {display_date} "
-            f"({inferred_slot} slot). Continuing."
-        )
 
-    # -- Stage 1b: Fetch cohorts (live mode only) -------------------------
-    run_fetch_cohorts(campaign_dir, live=args.live)
+        # -- Stage 1b: Fetch cohorts (live mode only) -------------------------
+        run_fetch_cohorts(campaign_dir, live=args.live)
 
-    # -- Stage 2: Generate priority exclusion CSVs --------------------------
-    run_generate(
-        campaign_dir,
-        clinic_csv=args.clinic_csv,
-        cohort_map=args.cohort_map,
-        output_dir=str(output_base),
-        date_str=date_str,
-        slot=args.slot,
-    )
-
-    # -- Stages 3 + 4: Prepare content then trigger campaigns per slot ---------
-    slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
-    processed_slots = 0
-
-    for slot in slots:
-        slot_dir_full = output_base / f"{date_str}_{slot}"
-
-        if not slot_dir_full.exists():
-            if using_default_today:
-                print(
-                    f"  [INFO] No data found in mastersheet for current date {display_date} "
-                    f"({slot} slot) -- skipping."
-                )
-            else:
-                print(
-                    f"  [INFO] No data found in mastersheet for requested date {display_date} "
-                    f"({slot} slot) -- skipping."
-                )
-            continue
-
-        # -- Stage 3: Resolve title / body per user + deeplinks ----------
-        raw_dl = Path(args.deeplink_map)
-        deeplink_map_path = raw_dl if raw_dl.is_absolute() else (project_root / raw_dl).resolve()
-        if not deeplink_map_path.exists():
-            print(f"  [WARNING] Deeplink map not found: {deeplink_map_path} -- deeplink columns will be skipped.")
-            deeplink_map_path = None
-        run_prepare_content(campaign_dir, slot_dir_full, deeplink_map_path)
-
-        # -- Stage 4: Trigger campaigns ------------------------------------
-        print()
-        print("-" * 72)
-        print(f"Stage 4 -- Triggering campaigns: {date_str} | {slot}")
-        print("-" * 72)
-
-        if args.live:
-            run_live_countdown(LIVE_COUNTDOWN_SECONDS)
-
-        run_trigger(
+        # -- Stage 2: Generate priority exclusion CSVs --------------------------
+        run_generate(
             campaign_dir,
-            slot_output_dir=str(slot_dir_full),
-            live=args.live,
-            max_workers=args.max_workers,
-            cohorts=args.cohorts,
+            clinic_csv=args.clinic_csv,
+            cohort_map=args.cohort_map,
+            output_dir=str(output_base),
+            date_str=date_str,
+            slot=args.slot,
         )
-        processed_slots += 1
 
-    # -- Stage 5: Append summaries to DB and log (live run only) --------------------
-    if args.live and processed_slots > 0:
+        # -- Stages 3 + 4: Prepare content then trigger campaigns per slot ---------
+        slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
+        processed_slots = 0
+
+        for slot in slots:
+            slot_dir_full = output_base / f"{date_str}_{slot}"
+
+            if not slot_dir_full.exists():
+                if using_default_today:
+                    print(
+                        f"  [INFO] No data found in mastersheet for current date {display_date} "
+                        f"({slot} slot) -- skipping."
+                    )
+                else:
+                    print(
+                        f"  [INFO] No data found in mastersheet for requested date {display_date} "
+                        f"({slot} slot) -- skipping."
+                    )
+                continue
+
+            # -- Stage 3: Resolve title / body per user + deeplinks ----------
+            raw_dl = Path(args.deeplink_map)
+            deeplink_map_path = raw_dl if raw_dl.is_absolute() else (project_root / raw_dl).resolve()
+            if not deeplink_map_path.exists():
+                print(f"  [WARNING] Deeplink map not found: {deeplink_map_path} -- deeplink columns will be skipped.")
+                deeplink_map_path = None
+            run_prepare_content(campaign_dir, slot_dir_full, deeplink_map_path)
+
+            # -- Stage 4: Trigger campaigns ------------------------------------
+            print()
+            print("-" * 72)
+            print(f"Stage 4 -- Triggering campaigns: {date_str} | {slot}")
+            print("-" * 72)
+
+            if args.live:
+                run_live_countdown(LIVE_COUNTDOWN_SECONDS)
+
+            run_trigger(
+                campaign_dir,
+                slot_output_dir=str(slot_dir_full),
+                live=args.live,
+                max_workers=args.max_workers,
+                cohorts=args.cohorts,
+            )
+            processed_slots += 1
+
+        # -- Stage 5: Append summaries to DB and log (live run only) --------------------
+        if args.live and processed_slots > 0:
+            print()
+            print("-" * 72)
+            print(f"Stage 5 -- Appending campaign summaries for {date_str}")
+            print("-" * 72)
+            run_append_summaries(campaign_dir, date_str)
+        elif args.live and processed_slots == 0:
+            print(
+                f"[INFO] No slots had data for {display_date}. "
+                "Skipping Stage 5 summary append."
+            )
+
         print()
-        print("-" * 72)
-        print(f"Stage 5 -- Appending campaign summaries for {date_str}")
-        print("-" * 72)
-        run_append_summaries(campaign_dir, date_str)
-    elif args.live and processed_slots == 0:
-        print(
-            f"[INFO] No slots had data for {display_date}. "
-            "Skipping Stage 5 summary append."
-        )
-
-    print()
-    print("Pipeline complete.")
-    if not args.live:
-        print(
-            "[INFO]  This was a dry-run. No campaigns were triggered. "
-            "Pass --live when you are ready to send."
+        print("Pipeline complete.")
+        if not args.live:
+            print(
+                "[INFO]  This was a dry-run. No campaigns were triggered. "
+                "Pass --live when you are ready to send."
+            )
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 1
+        if code != 0:
+            status = "FAILED"
+            failure_message = f"Exited with code {code}"
+        raise
+    except Exception as exc:
+        status = "FAILED"
+        failure_message = str(exc)
+        raise
+    finally:
+        send_pipeline_slack_message(
+            project_root=project_root,
+            status=status,
+            date_text=display_date,
+            slot=args.slot,
+            live=args.live,
+            error_message=failure_message,
         )
 
 
