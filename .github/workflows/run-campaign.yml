@@ -12,7 +12,7 @@ on:
 
 jobs:
   run-morning:
-    if: always()
+    if: github.event.schedule == '30 5 * * *'
     runs-on: ubuntu-latest
 
     steps:
@@ -40,11 +40,11 @@ jobs:
         run: echo "TODAY=$(TZ='Asia/Kolkata' date +'%d%m%Y')" >> $GITHUB_ENV
 
       - name: Run morning campaign (LIVE)
-        run: python run_campaign.py --slot morning --date $TODAY
+        run: python run_campaign.py --slot morning --date $TODAY --live
 
 
   run-evening:
-    if: always()
+    if: github.event.schedule == '30 11 * * *'
     runs-on: ubuntu-latest
 
     steps:
@@ -72,4 +72,4 @@ jobs:
         run: echo "TODAY=$(TZ='Asia/Kolkata' date +'%d%m%Y')" >> $GITHUB_ENV
 
       - name: Run evening campaign (LIVE)
-        run: python run_campaign.py --slot evening --date $TODAY
+        run: python run_campaign.py --slot evening --date $TODAY --live
