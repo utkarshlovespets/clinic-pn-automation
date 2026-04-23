@@ -265,6 +265,62 @@ def has_slot_data_in_mastersheet(
     return bool(usable.any())
 
 
+def validate_title_body_for_run_date(
+    clinic_csv_path: Path,
+    run_date: datetime,
+) -> None:
+    """Abort if any row for run_date has missing Title or Content."""
+    if not clinic_csv_path.exists():
+        raise FileNotFoundError(f"clinic_mastersheet not found: {clinic_csv_path}")
+
+    df = pd.read_csv(clinic_csv_path, dtype=str, keep_default_na=False)
+    required = {"Date", "Title", "Content"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            "clinic_mastersheet is missing required columns for title/body validation: "
+            f"{sorted(missing)}"
+        )
+
+    df["_date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
+    target_date = pd.Timestamp(run_date.date())
+    rows_for_date = df[df["_date"].eq(target_date)].copy()
+
+    if rows_for_date.empty:
+        return
+
+    rows_for_date["_title_missing"] = rows_for_date["Title"].fillna("").str.strip().eq("")
+    rows_for_date["_content_missing"] = rows_for_date["Content"].fillna("").str.strip().eq("")
+    invalid = rows_for_date[rows_for_date["_title_missing"] | rows_for_date["_content_missing"]]
+
+    if invalid.empty:
+        return
+
+    print(
+        f"[ERROR] Found {len(invalid)} row(s) for {run_date.strftime('%d/%m/%Y')} "
+        "with missing title/body. Aborting pipeline."
+    )
+    for idx, row in invalid.head(10).iterrows():
+        date_val = row.get("Date", "")
+        slot_val = row.get("Slot", "")
+        cohort_val = row.get("Cohort Name", "")
+        title_missing = bool(row["_title_missing"])
+        content_missing = bool(row["_content_missing"])
+        if title_missing and content_missing:
+            missing_desc = "Title and Content missing"
+        elif title_missing:
+            missing_desc = "Title missing"
+        else:
+            missing_desc = "Content missing"
+        print(
+            f"  - Row {idx + 2}: Date={date_val}, Slot={slot_val}, "
+            f"Cohort={cohort_val}, Issue={missing_desc}"
+        )
+    if len(invalid) > 10:
+        print(f"  ... and {len(invalid) - 10} more invalid row(s).")
+    sys.exit(1)
+
+
 def run_live_countdown(seconds: int) -> None:
     """Show a visible line-by-line countdown before live triggering."""
     print()
@@ -389,13 +445,17 @@ def main() -> None:
     run_fetch(campaign_dir)
 
     # Auto-slot guard: only proceed if today's inferred IST slot exists in mastersheet.
+    raw_clinic_path = Path(args.clinic_csv)
+    clinic_path = (
+        raw_clinic_path
+        if raw_clinic_path.is_absolute()
+        else (project_root / raw_clinic_path).resolve()
+    )
+
+    # Global guard: for the running date, every row must have both title and body.
+    validate_title_body_for_run_date(clinic_path, run_date)
+
     if auto_slot_mode and inferred_slot is not None:
-        raw_clinic_path = Path(args.clinic_csv)
-        clinic_path = (
-            raw_clinic_path
-            if raw_clinic_path.is_absolute()
-            else (project_root / raw_clinic_path).resolve()
-        )
         if not has_slot_data_in_mastersheet(clinic_path, run_date, inferred_slot):
             print(
                 f"[INFO] Auto-slot check: no mastersheet data for {display_date} "
