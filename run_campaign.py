@@ -193,25 +193,6 @@ def run_trigger(
         _sys.argv = original_argv
 
 
-def run_append_summaries(script_dir: Path, date_str: str) -> None:
-    """Import and call script 05's main() to append summaries to DB and log."""
-    import sys as _sys
-    original_argv = _sys.argv[:]
-    _sys.argv = [
-        "05_append_summaries.py",
-        "--date", date_str,
-    ]
-    try:
-        sys.path.insert(0, str(script_dir))
-        import importlib
-        mod = importlib.import_module("05_append_summaries")
-        mod.main()
-    except ImportError as e:
-        print(f"[WARNING] Stage 5 skipped: {e}")
-    finally:
-        _sys.argv = original_argv
-
-
 def parse_date(date_str: str) -> datetime:
     """Parse DDMMYYYY date string."""
     try:
@@ -504,6 +485,8 @@ def main() -> None:
 
     status = "SUCCESS"
     failure_message: Optional[str] = None
+    pipeline_skipped = False
+    live_trigger_stage_ran = False
 
     try:
         print_header(live=args.live)
@@ -528,6 +511,7 @@ def main() -> None:
                     f"[INFO] Auto-slot check: no mastersheet data for {display_date} "
                     f"({inferred_slot} slot). Exiting without running pipeline stages."
                 )
+                pipeline_skipped = True
                 return
             print(
                 f"[INFO] Auto-slot check: mastersheet has data for {display_date} "
@@ -582,6 +566,7 @@ def main() -> None:
             print("-" * 72)
 
             if args.live:
+                live_trigger_stage_ran = True
                 run_live_countdown(LIVE_COUNTDOWN_SECONDS)
 
             run_trigger(
@@ -593,18 +578,8 @@ def main() -> None:
             )
             processed_slots += 1
 
-        # -- Stage 5: Append summaries to DB and log (live run only) --------------------
-        if args.live and processed_slots > 0:
-            print()
-            print("-" * 72)
-            print(f"Stage 5 -- Appending campaign summaries for {date_str}")
-            print("-" * 72)
-            run_append_summaries(campaign_dir, date_str)
-        elif args.live and processed_slots == 0:
-            print(
-                f"[INFO] No slots had data for {display_date}. "
-                "Skipping Stage 5 summary append."
-            )
+        if processed_slots == 0:
+            pipeline_skipped = True
 
         print()
         print("Pipeline complete.")
@@ -624,14 +599,21 @@ def main() -> None:
         failure_message = str(exc)
         raise
     finally:
-        send_pipeline_slack_message(
-            project_root=project_root,
-            status=status,
-            date_text=display_date,
-            slot=args.slot,
-            live=args.live,
-            error_message=failure_message,
-        )
+        should_send_slack = not (pipeline_skipped and not live_trigger_stage_ran)
+        if should_send_slack:
+            send_pipeline_slack_message(
+                project_root=project_root,
+                status=status,
+                date_text=display_date,
+                slot=args.slot,
+                live=args.live,
+                error_message=failure_message,
+            )
+        else:
+            print(
+                "[INFO] Slack notification skipped: pipeline had no runnable slot "
+                "and no live trigger API stage was executed."
+            )
 
 
 if __name__ == "__main__":
