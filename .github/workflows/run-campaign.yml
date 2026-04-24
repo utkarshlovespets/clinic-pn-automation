@@ -31,13 +31,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Debug time (optional but useful)
-      - name: Print current time (debug)
-        run: |
-          echo "UTC time: $(date -u)"
-          echo "IST time: $(TZ=Asia/Kolkata date)"
-
-      # 5. Run campaign
+      # 4. Run campaign
       - name: Run campaign (live)
         run: |
           python run_campaign.py --live
