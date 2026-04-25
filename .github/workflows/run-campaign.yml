@@ -1,10 +1,10 @@
-name: Run Campaign Pipeline (Manual Live)
+name: Run Campaign Pipeline
 
 on:
   workflow_dispatch:
     inputs:
       slot:
-        description: 'Choose slot to run'
+        description: 'Choose Slot to Run'
         required: true
         type: choice
         options:
