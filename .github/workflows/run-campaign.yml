@@ -1,37 +1,47 @@
-name: Run Campaign
+name: Run Campaign Pipeline (Manual Live)
 
 on:
-  schedule:
-    # 12:00 PM IST → 06:30 UTC
-    - cron: '35 4 * * *'
-
-    # 5:00 PM IST → 11:30 UTC
-    - cron: '30 11 * * *'
-
   workflow_dispatch:
+    inputs:
+      slot:
+        description: 'Choose slot to run'
+        required: true
+        type: choice
+        options:
+          - morning
+          - evening
 
 jobs:
   run-campaign:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout code
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      # 2. Set up Python
-      - name: Set up Python
+      - name: Set up Python 3.14
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
-      # 3. Install dependencies
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
-      # 4. Run campaign
-      - name: Run campaign (live)
+      - name: Create .env
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+
+      - name: Create credentials.json
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS }}' > credentials.json
+
+      - name: Create token.json
+        run: echo '${{ secrets.GOOGLE_TOKEN }}' > token.json
+
+      # Generate today's date in IST
+      - name: Set date (IST)
+        run: echo "TODAY=$(TZ='Asia/Kolkata' date +'%d%m%Y')" >> $GITHUB_ENV
+
+      # Run based on selected slot
+      - name: Run campaign (LIVE)
         run: |
-          python run_campaign.py --live
+          echo "Running ${{ github.event.inputs.slot }} campaign for date $TODAY"
+          python run_campaign.py --slot ${{ github.event.inputs.slot }} --date $TODAY --live
