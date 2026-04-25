@@ -3,7 +3,7 @@ name: Run Campaign
 on:
   schedule:
     # 12:00 PM IST → 06:30 UTC
-    - cron: '30 6 * * *'
+    - cron: '30 4 * * *'
 
     # 5:00 PM IST → 11:30 UTC
     - cron: '30 11 * * *'
