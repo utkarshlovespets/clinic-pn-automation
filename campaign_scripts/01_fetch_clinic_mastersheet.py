@@ -1,6 +1,7 @@
 import argparse
 import csv
 import os
+import re
 from pathlib import Path
 from typing import Any, List
 
@@ -17,6 +18,7 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 WORKSHEET_NAME = "Clinic_PN_Automation"
 DEFAULT_OUTPUT = "data/clinic_mastersheet.csv"
 DEFAULT_COLUMNS_RANGE = "A:Z"
+DISCOUNT_PLACEHOLDER_RE = re.compile(r"x\s*x\s*%", re.IGNORECASE)
 
 
 def resolve_path(path_value: str, fallback: str, base_dir: Path) -> Path:
@@ -97,6 +99,27 @@ def values_to_csv(values: List[List[str]], output_path: Path) -> None:
 
 	max_cols = max(len(row) for row in values)
 	normalized_rows = [row + [""] * (max_cols - len(row)) for row in values]
+
+	header = normalized_rows[0] if normalized_rows else []
+	header_map = {str(col).strip().lower(): idx for idx, col in enumerate(header)}
+	title_idx = header_map.get("title")
+	content_idx = header_map.get("content")
+
+	# Some sheets may be exported without a header row.
+	# In that case, clinic mastersheet columns are expected as:
+	# Date, Day, Slot, Cohort Name, Exclusion, Title, Content
+	if title_idx is None and content_idx is None:
+		max_cols_count = len(header)
+		if max_cols_count >= 7:
+			title_idx = 5
+			content_idx = 6
+
+	if title_idx is not None or content_idx is not None:
+		for row in normalized_rows[1:]:
+			if title_idx is not None:
+				row[title_idx] = DISCOUNT_PLACEHOLDER_RE.sub("10%", str(row[title_idx]))
+			if content_idx is not None:
+				row[content_idx] = DISCOUNT_PLACEHOLDER_RE.sub("10%", str(row[content_idx]))
 
 	output_path.parent.mkdir(parents=True, exist_ok=True)
 	with output_path.open("w", newline="", encoding="utf-8") as csv_file:
