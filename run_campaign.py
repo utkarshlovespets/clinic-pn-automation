@@ -252,8 +252,9 @@ def has_slot_data_in_mastersheet(
 def validate_title_body_for_run_date(
     clinic_csv_path: Path,
     run_date: datetime,
+    run_slots: list[str],
 ) -> None:
-    """Abort if any row for run_date has missing Title or Content."""
+    """Abort if any row for run_date + selected slot(s) has missing Title or Content."""
     if not clinic_csv_path.exists():
         raise FileNotFoundError(f"clinic_mastersheet not found: {clinic_csv_path}")
 
@@ -268,7 +269,16 @@ def validate_title_body_for_run_date(
 
     df["_date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
     target_date = pd.Timestamp(run_date.date())
+    normalized_slots = {str(slot).strip().lower() for slot in run_slots}
+    valid_slots = {"morning", "evening"}
+    selected_slots = normalized_slots & valid_slots
+
     rows_for_date = df[df["_date"].eq(target_date)].copy()
+    if selected_slots:
+        if "Slot" not in rows_for_date.columns:
+            rows_for_date["Slot"] = ""
+        rows_for_date["_slot"] = rows_for_date["Slot"].fillna("").str.strip().str.lower()
+        rows_for_date = rows_for_date[rows_for_date["_slot"].isin(selected_slots)].copy()
 
     if rows_for_date.empty:
         return
@@ -281,8 +291,9 @@ def validate_title_body_for_run_date(
         return
 
     print(
-        f"[ERROR] Found {len(invalid)} row(s) for {run_date.strftime('%d/%m/%Y')} "
-        "with missing title/body. Aborting pipeline."
+            f"[ERROR] Found {len(invalid)} row(s) for {run_date.strftime('%d/%m/%Y')} "
+            f"for slot(s) {', '.join(sorted(selected_slots)) or 'all'} "
+            "with missing title/body. Aborting pipeline."
     )
     for idx, row in invalid.head(10).iterrows():
         date_val = row.get("Date", "")
@@ -503,7 +514,8 @@ def main() -> None:
         )
 
         # Global guard: for the running date, every row must have both title and body.
-        validate_title_body_for_run_date(clinic_path, run_date)
+        selected_slots = ["morning", "evening"] if args.slot == "both" else [args.slot]
+        validate_title_body_for_run_date(clinic_path, run_date, selected_slots)
 
         if auto_slot_mode and inferred_slot is not None:
             if not has_slot_data_in_mastersheet(clinic_path, run_date, inferred_slot):
