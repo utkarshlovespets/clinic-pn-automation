@@ -1,205 +1,160 @@
 # Usage Guide
 
----
-
 ## Prerequisites
 
-### Install Dependencies
+Install dependencies:
 
 ```bash
 pip install pandas mysql-connector-python google-auth-oauthlib google-auth-httplib2 google-api-python-client requests python-dotenv
 ```
 
-### Set Up Credentials
+Create `.env`, add Google and CleverTap credentials, and place OAuth credentials at `secrets/credentials.json`.
 
-1. Create `.env` in the project root (see [configuration.md](configuration.md))
-2. Place `credentials.json` in `secret/`
-3. Run Stage 1 once to authenticate with Google (browser prompt will appear to generate `token.json`)
+## Full Pipeline
 
----
-
-## Running the Full Pipeline
-
-Use `run_campaign.py` to run all stages end-to-end.
-
-### Syntax
+Dry-run current IST auto-slot:
 
 ```bash
-python run_campaign.py [--date DDMMYYYY] [--slot {morning,evening,both}] [--live] [--max-workers N] [--cohorts NAME ...]
+python run_campaign.py
 ```
 
-### Common Scenarios
+Dry-run a specific date and slot:
 
-**Preview today's morning campaign (dry-run):**
 ```bash
-python run_campaign.py --slot morning
+python run_campaign.py --date 04052026 --slot morning
 ```
 
-**Preview both slots for a specific date:**
+Dry-run both slots:
+
 ```bash
-python run_campaign.py --slot both --date 22032026
+python run_campaign.py --date 04052026 --slot both
 ```
 
-**Important:** The `--date` and `--slot` flags are propagated across all pipeline stages. If omitted, all stages default to today's date and both slots.
+Live run, authorized use only:
 
-**Preview only specific cohorts:**
 ```bash
-python run_campaign.py --slot morning --cohorts "N2B_All_Bangalore" "Clinic_Birthday"
+python run_campaign.py --date 04052026 --slot morning --live
 ```
 
-**Run live campaign (morning slot):**
+Filter Stage 4 to specific generated cohort names:
+
 ```bash
-python run_campaign.py --slot morning --live
+python run_campaign.py --date 04052026 --slot morning --cohorts Clinic_WTFLD Clinic_Grooming_Repl_xxREP
 ```
 
-When running live, a **10-second countdown** will be displayed before Stage 4 triggers campaigns. Press Ctrl+C during the countdown to abort.
+Increase orchestrated Stage 4 parallelism:
 
-**Run live with higher parallelism:**
 ```bash
-python run_campaign.py --slot morning --live --max-workers 50
+python run_campaign.py --date 04052026 --slot morning --live --max-workers 50
 ```
 
----
+## What `run_campaign.py` Does
 
-## Running Individual Stages
+1. Fetches `Clinic_PN_Automation`, `Cohort_Mapping`, and `Exclusion_Mapping` from Google Sheets.
+2. In live mode only, refreshes cohort CSVs through Stage 1b.
+3. Generates priority-filtered audience CSVs.
+4. Adds personalized title/body and deeplinks.
+5. Dry-runs or live-triggers CleverTap campaigns.
+6. Sends a Slack status notification when Slack env vars are configured.
 
-Each stage can be run independently if needed.
+## Individual Stages
 
-### Stage 0 — Refresh Cohort Data from MySQL
-
-Run all SQL queries:
-```bash
-python fetch_cohorts.py
-```
-
-Run a single query:
-```bash
-python fetch_cohorts.py --query all_rajaji_nagar
-```
-
-### Stage 1 — Fetch Mastersheet from Google Sheets
+Fetch Google Sheet config:
 
 ```bash
 python campaign_scripts/01_fetch_clinic_mastersheet.py
 ```
 
-Outputs: `data/clinic_mastersheet.csv`
-
-### Stage 2 — Generate Priority Exclusions
+Generate priority files:
 
 ```bash
-python campaign_scripts/02_generate_priority_exclusions.py --date 25032026 --slot evening
+python campaign_scripts/02_generate_priority_exclusions.py --date 04052026 --slot morning
 ```
 
-Outputs: `outputs/25032026_evening/`
-
-### Stage 3 — Prepare Campaign Content
+Prepare content:
 
 ```bash
-python campaign_scripts/03_prepare_campaign_content.py --output-dir outputs/25032026_evening
+python campaign_scripts/03_prepare_campaign_content.py --output-dir outputs/04052026_morning
 ```
 
-Enriches the CSVs in the specified output directory.
+Trigger dry-run:
 
-### Stage 4 — Trigger Campaign
-
-Dry-run (preview only):
 ```bash
-python campaign_scripts/04_trigger_campaign.py --output-dir outputs/25032026_evening
+python campaign_scripts/04_trigger_campaign.py --output-dir outputs/04052026_morning
 ```
 
-Live run:
+Trigger live:
+
 ```bash
-python campaign_scripts/04_trigger_campaign.py --output-dir outputs/25032026_evening --live
+python campaign_scripts/04_trigger_campaign.py --output-dir outputs/04052026_morning --live
 ```
 
----
+Generate summaries archive:
 
-## Interpreting Dry-Run Output
-
-When running in dry-run mode, Stage 4 prints a sample of what would be sent:
-
-```
-[DRY-RUN] Cohort: Rajaji_Nagar_n2b_15km  (Priority 1)
-  Would send to 4688 users in 5 batch(es).
-  Sample payload:
-  {
-    "to": {"email": ["user1@example.com", "user2@example.com", ...]},
-    "campaign_id_list": [<campaign_id_for_that_cohort>],
-    "ExternalTrigger": {
-      "title": "Traffic jam? But vet visits > 🚗",
-      "body": "Skip the chaos. Get 25% OFF at Supertails+ Clinic...",
-      "android_deeplink": "https://supertails.com/...",
-      "ios_deeplink": "supertails-com/..."
-    }
-  }
-  (+4 more batch(es) not shown)
-```
-
-Review this output before running with `--live`.
-
----
-
-## Reviewing Outputs
-
-After running the pipeline, check the output directory:
-
-```
-outputs/25032026_evening/
-├── 01_Rajaji_Nagar_n2b_15km.csv      ← priority 1 users
-├── 02_Clinic_KN_Mar_26.csv            ← priority 2 users
-├── 03_Clinic_Birthday.csv
-├── campaign_meta.csv                  ← templates per cohort
-└── summary.csv                        ← exclusion statistics
-```
-
-**Check `summary.csv`** to verify exclusion counts look reasonable before going live.
-
-**Check a cohort CSV** to spot-check personalization:
 ```bash
-head outputs/25032026_evening/01_Rajaji_Nagar_n2b_15km.csv
+python generate_summaries_archive.py
 ```
 
----
+## Files To Inspect Before Live
 
-## Checking Dispatch Logs
+Stage 2:
 
-After a live run, dispatch logs are at:
-
+```text
+outputs/04052026_morning/campaign_meta.csv
+outputs/log/summary/04052026_morning.csv
 ```
-outputs/log/25032026_evening_dispatch_log.csv
+
+Stage 3:
+
+```text
+outputs/04052026_morning/01_Clinic_WTFLD.csv
+outputs/04052026_morning/02_Clinic_Grooming_Repl_xxREP.csv
 ```
 
-The log contains one row per user with timestamp, status code, and the exact title/body sent. Use this for post-campaign auditing or debugging delivery failures.
+Dry-run log:
 
----
+```text
+outputs/log/dry_run/04052026_morning_campaign_log.csv
+```
 
-## Troubleshooting
+Live log:
 
-### Google Sheets authentication fails
+```text
+outputs/log/live/04052026_morning_campaign_log.csv
+```
 
-Delete `secret/token.json` and re-run Stage 1. A browser window will open for re-authentication.
+## Common Checks
 
-### Cohort CSV not found
+### Missing Cohort CSV
 
-Check that the `cohort_dataset` value in `data/cohort_mapping.csv` and the `Dataset` value in `data/exclusion_mapping.csv` match actual filenames in `data/cohorts/`. Campaign rows are mapped by `campaign_id`; exclusion rows are mapped by `Exclusion Name`.
+Check:
 
-### CleverTap API returns 401
+- `data/cohort_mapping.csv.cohort_dataset`
+- `data/exclusion_mapping.csv.Dataset`
+- Files under `data/cohorts/`
 
-Verify `CLEVERTAP_ACCOUNT_ID` and `CLEVERTAP_PASSCODE` in `.env`. Check that the campaign is not paused or archived in CleverTap.
+The filenames must match exactly.
 
-### Zero users in output CSV
+### Campaign ID Not Found
 
-Check `summary.csv` — if `input_candidates` is 0, the cohort CSV is empty or missing. If `excluded_by_priority` equals `input_candidates`, the entire cohort was eliminated by higher-priority cohorts on the same date.
+Check that `Clinic_PN_Automation.Campaign ID` matches `Cohort_Mapping.campaign_id`.
 
-### MySQL connection fails (Stage 0)
+### Mapping Column Error
 
-Confirm you are on the correct VPN/network that has access to `MYSQL_HOST`. Verify credentials in `.env`.
+`data/cohort_mapping.csv` must contain `cohort_code`.
 
----
+### Missing Title Or Content
 
-## Abort a Live Run
+`run_campaign.py` aborts when selected rows for the run date/slot have blank `Title` or `Content`. Fill those cells in `Clinic_PN_Automation` and rerun Stage 1.
 
-Press **Ctrl+C** during the 5-second countdown (before any API calls) to abort safely.
+### Google Auth Fails
 
-If batches have already started, Ctrl+C will interrupt in-flight threads. Check the dispatch log to see which users were successfully sent.
+Delete `secrets/token.json` and rerun Stage 1. A browser auth flow will recreate it.
+
+### CleverTap 401
+
+Check `CLEVERTAP_ACCOUNT_ID`, `CLEVERTAP_PASSCODE`, and `CLEVERTAP_REGION` in `.env`.
+
+## Live-Run Safety
+
+Dry-run is the default. `--live` is required for API calls. Live mode includes countdown prompts before triggering. Press `Ctrl+C` during a countdown to abort before sends start.

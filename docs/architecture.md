@@ -1,145 +1,79 @@
 # Architecture
 
-## System Overview
-
-The pipeline is a linear, CSV-based data pipeline. Each stage reads from files produced by the previous stage and writes its own output files. No shared state is held in memory between stages — all intermediate data lives on disk as CSVs.
-
-This design makes it easy to:
-- Inspect data at any stage before proceeding
-- Re-run individual stages without re-running the full pipeline
-- Debug failures by examining intermediate files
-
----
+The project is a file-based campaign pipeline. Each stage reads CSV inputs, writes CSV outputs, and can be inspected or rerun independently.
 
 ## Data Flow
 
-```
-┌─────────────────────────────────────────────┐
-│                  DATA SOURCES               │
-│                                             │
-│  Google Sheets          MySQL Database      │
-│  (campaign schedule)    (customer data)     │
-└────────────┬────────────────────┬───────────┘
-             │                    │
-             ▼                    ▼
-  ┌──────────────────┐  ┌──────────────────────┐
-  │ Stage 1          │  │ Stage 0 (optional)   │
-  │ Fetch Mastersheet│  │ Fetch Cohorts        │
-  └────────┬─────────┘  └──────────┬───────────┘
-           │                       │
-           ▼                       ▼
-  data/clinic_mastersheet.csv   data/cohorts/*.csv
-           │                       │
-           └───────────┬───────────┘
-                       │  + data/cohort_mapping.csv
-                       │  + data/exclusion_mapping.csv
-                       ▼
-           ┌───────────────────────────┐
-           │ Stage 2                   │
-           │ Generate Priority         │
-           │ Exclusions                │
-           └──────────────┬────────────┘
-                          │
-                          ▼
-           outputs/{date}_{slot}/
-             ├── 01_Cohort.csv
-             ├── 02_Cohort.csv
-             ├── campaign_meta.csv
-             └── summary.csv
-                          │
-                          ▼
-           ┌───────────────────────────┐
-           │ Stage 3                   │
-           │ Prepare Campaign Content  │
-           │ (personalization +        │
-           │  deeplinks injected)      │
-           └──────────────┬────────────┘
-                          │
-                          ▼
-           outputs/{date}_{slot}/
-             └── NN_Cohort.csv  (enriched with
-                                 title, body, campaign_id, deeplinks)
-                          │
-                          ▼
-           ┌───────────────────────────┐
-           │ Stage 4                   │
-           │ Trigger Campaign          │
-           │                           │
-           │  Dry-run: print payloads  │
-           │  Live: POST to CleverTap  │
-           └──────────────┬────────────┘
-                          │
-                          ▼
-           outputs/log/{date}_{slot}_dispatch_log.csv
+```text
+Google Sheet: Clinic_PN_Automation
+Google Sheet: Cohort_Mapping
+Google Sheet: Exclusion_Mapping
+          |
+          v
+Stage 1: campaign_scripts/01_fetch_clinic_mastersheet.py
+          |
+          |-- data/clinic_mastersheet.csv
+          |-- data/cohort_mapping.csv
+          `-- data/exclusion_mapping.csv
+
+data/cohorts/*.csv
+          |
+          v
+Stage 2: campaign_scripts/02_generate_priority_exclusions.py
+          |
+          |-- outputs/{DDMMYYYY}_{slot}/NN_{cohort_code}.csv
+          |-- outputs/{DDMMYYYY}_{slot}/campaign_meta.csv
+          `-- outputs/log/summary/{DDMMYYYY}_{slot}.csv
+
+Stage 3: campaign_scripts/03_prepare_campaign_content.py
+          |
+          v
+outputs/{DDMMYYYY}_{slot}/NN_{cohort_code}.csv
+with title, body, campaign_id, and deeplink columns
+
+Stage 4: campaign_scripts/04_trigger_campaign.py
+          |
+          |-- dry-run: print payload previews, no API calls
+          |-- live: POST to CleverTap
+          `-- outputs/log/{dry_run|live}/{DDMMYYYY}_{slot}_campaign_log.csv
 ```
 
----
+## Orchestration
 
-## Component Responsibilities
+`run_campaign.py` runs Stages 1 through 4 in order. It handles:
 
-### Orchestrator (`run_campaign.py`)
+- Date and slot selection.
+- Auto-slot mode when run with no flags or only `--live`.
+- Fetching all three Google Sheet tabs.
+- Passing `cohort_mapping.csv` and `exclusion_mapping.csv` into Stage 2.
+- Passing `cohort_mapping.csv` into Stage 3 for campaign IDs and deeplinks.
+- Dry-run by default, live mode only with `--live`.
+- Slack completion notification when configured.
 
-Imports and runs Stages 1–4 sequentially via `importlib`. Handles:
-- Command-line argument parsing (date, slot, cohort filter, live mode, max-workers)
-- Safety disclaimers and confirmation prompts before live runs
-- Passing context (output directory, date, slot) between stages
+## Stage Responsibilities
 
-### Stage 0 — Fetch Cohorts (`fetch_cohorts.py`)
+| Stage | Script | Responsibility |
+|---|---|---|
+| Stage 1 | `01_fetch_clinic_mastersheet.py` | Fetch mastersheet, cohort mapping, and exclusion mapping from Google Sheets |
+| Stage 1b | `00_fetch_cohorts.py` | Live-only cohort refresh from configured data source |
+| Stage 2 | `02_generate_priority_exclusions.py` | Build prioritized audience CSVs and apply priority/exclusion filtering |
+| Stage 3 | `03_prepare_campaign_content.py` | Resolve title/body personalization and build deeplinks |
+| Stage 4 | `04_trigger_campaign.py` | Dry-run or live trigger CleverTap campaigns |
 
-Optional. Connects to MySQL and runs SQL files from `data/queries/` to produce cohort CSVs in `data/cohorts/`. Only needed when cohort data needs refreshing from the database. Cohort CSVs can also be provided manually.
+## Mapping Model
 
-### Stage 1 — Fetch Mastersheet (`campaign_scripts/01_fetch_clinic_mastersheet.py`)
+Campaign audiences are matched by `Campaign ID` in `data/clinic_mastersheet.csv` to `campaign_id` in `data/cohort_mapping.csv`.
 
-Authenticates with Google Sheets via OAuth 2.0 and downloads the campaign schedule. The mastersheet defines which cohorts are targeted on which dates, in which slot, and with what message templates.
+`cohort_code` is the automation-facing cohort identifier used for output filenames and normalized lookups. It is required in the mapping file.
 
-### Stage 2 — Priority Exclusions (`campaign_scripts/02_generate_priority_exclusions.py`)
+Explicit exclusions are separate. The mastersheet `Exclusion` cell names values from `data/exclusion_mapping.csv` column `Exclusion Name`; each maps to a `Dataset` file under `data/cohorts/`.
 
-The core business logic stage. Applies a two-layer exclusion model:
-
-1. **Priority exclusion:** Users in higher-priority cohorts are removed from lower-priority ones, so no user receives duplicate notifications.
-2. **Explicit exclusion:** The `Exclusion` column in the mastersheet can name additional cohorts whose members should be removed from a given cohort.
-
-Outputs one CSV per cohort (numbered by priority) plus a `summary.csv` with exclusion statistics.
-
-### Stage 3 — Campaign Content (`campaign_scripts/03_prepare_campaign_content.py`)
-
-Reads per-user data and resolves template placeholders (`{your pet}`, `{your pet's}`, `{pet parent}`) against actual first names and pet names. Constructs deeplink URLs by substituting `{date}` and `{priority}` into URL templates from `data/cohort_mapping.csv`, and copies cohort-level `campaign_id` into each enriched row.
-
-### Stage 4 — Trigger Campaign (`campaign_scripts/04_trigger_campaign.py`)
-
-Groups users by identical (title, body, deeplinks, campaign_id) tuples, chunks each group into batches of up to 1000 emails, and sends one API request per batch. Runs batches in parallel via `ThreadPoolExecutor`. In live mode, retries failed requests up to 3 times with exponential backoff.
-
----
-
-## Parallelism Model
-
-Stage 4 uses Python's `ThreadPoolExecutor` for parallel HTTP calls to CleverTap. The default worker count is 30 and can be overridden with `--max-workers`. Batching is I/O-bound (network), so threading is appropriate.
-
-Stages 1–3 are single-threaded and sequential.
-
----
-
-## Output Directory Naming
-
-All intermediate and final outputs for a campaign run are placed under:
-
-```
-outputs/{DDMMYYYY}_{morning|evening}/
-```
-
-Example: `outputs/25032026_evening/`
-
-This namespacing means multiple campaign runs can coexist without overwriting each other.
-
----
-
-## Safety Architecture
+## Safety
 
 | Mechanism | Purpose |
 |---|---|
-| Dry-run default | No API calls unless `--live` is passed |
-| 5-second countdown | Allows abort before live execution starts |
-| Sample payload preview | Review what will be sent before committing |
-| Retry with backoff | Handles transient network failures gracefully |
-| Dispatch log | Full audit trail of every send attempt |
-| Credential gitignore | Prevents accidental credential commits |
+| Dry-run default | Prevents accidental CleverTap sends |
+| `--live` flag | Required before API calls are made |
+| Countdown | Gives a final abort window before live sends |
+| Campaign logs | Records attempted sends in dry-run and live folders |
+| CSV checkpoints | Makes each stage inspectable before continuing |

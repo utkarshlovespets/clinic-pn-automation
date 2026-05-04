@@ -1,160 +1,114 @@
 # Configuration
 
----
+## Environment Variables
 
-## Environment Variables (`.env`)
-
-Create a `.env` file in the project root with the following variables:
+Create `.env` in the project root.
 
 ```env
-# ── Google Sheets ──────────────────────────────────────────────────────────────
-SPREADSHEET_ID=<your-google-sheets-id>
+SPREADSHEET_ID=<google-sheet-id>
 GOOGLE_CREDENTIALS_FILE=credentials.json
 GOOGLE_TOKEN_FILE=token.json
 
-# ── CleverTap ──────────────────────────────────────────────────────────────────
-CLEVERTAP_ACCOUNT_ID=<your-account-id>
-CLEVERTAP_PASSCODE=<your-passcode>
+CLEVERTAP_ACCOUNT_ID=<clevertap-account-id>
+CLEVERTAP_PASSCODE=<clevertap-passcode>
 CLEVERTAP_REGION=in1
-CLEVERTAP_CAMPAIGN_ID=<optional-default-campaign-id>
+CLEVERTAP_CAMPAIGN_ID=<optional-fallback-campaign-id>
 
-# ── MySQL (only needed for Stage 0) ───────────────────────────────────────────
-MYSQL_HOST=<your-mysql-host>
+MYSQL_HOST=<optional-host>
 MYSQL_PORT=3306
-MYSQL_USER=<your-username>
-MYSQL_PASSWORD=<your-password>
+MYSQL_USER=<optional-user>
+MYSQL_PASSWORD=<optional-password>
+
+DEFAULT_SLACK_API_URL=https://slack.com/api/chat.postMessage
+DEFAULT_SLACK_CHANNEL=<optional-channel-id>
+SLACK_API_TOKEN=<optional-token>
 ```
 
-### Variable Reference
-
-| Variable | Required By | Description |
+| Variable | Used by | Notes |
 |---|---|---|
-| `SPREADSHEET_ID` | Stage 1 | Google Sheets document ID (from the sheet URL) |
-| `GOOGLE_CREDENTIALS_FILE` | Stage 1 | Filename of OAuth credentials JSON (placed in `secret/`) |
-| `GOOGLE_TOKEN_FILE` | Stage 1 | Filename of cached OAuth token (auto-created in `secret/`) |
-| `CLEVERTAP_ACCOUNT_ID` | Stage 4 | CleverTap account identifier |
+| `SPREADSHEET_ID` | Stage 1 | Google Sheet containing all three required tabs |
+| `GOOGLE_CREDENTIALS_FILE` | Stage 1 | OAuth client JSON, resolved relative to project root or `secrets/` |
+| `GOOGLE_TOKEN_FILE` | Stage 1 | Cached OAuth token, created automatically |
+| `CLEVERTAP_ACCOUNT_ID` | Stage 4 | CleverTap API account ID |
 | `CLEVERTAP_PASSCODE` | Stage 4 | CleverTap API passcode |
-| `CLEVERTAP_REGION` | Stage 4 | CleverTap regional endpoint (e.g., `in1` for India) |
-| `CLEVERTAP_CAMPAIGN_ID` | Stage 4 | Optional fallback campaign ID when a cohort row is missing `campaign_id` |
-| `MYSQL_HOST` | Stage 0 | Hostname of the analytics database |
-| `MYSQL_PORT` | Stage 0 | MySQL port (default: 3306) |
-| `MYSQL_USER` | Stage 0 | MySQL username |
-| `MYSQL_PASSWORD` | Stage 0 | MySQL password |
+| `CLEVERTAP_REGION` | Stage 4 | Region such as `in1`, `us1`, or `eu1` |
+| `CLEVERTAP_CAMPAIGN_ID` | Stage 4 | Optional fallback only when enriched CSV campaign ID is blank |
+| `MYSQL_*` | Stage 1b | Only needed when refreshing cohort CSVs from database |
+| `DEFAULT_SLACK_*`, `SLACK_API_TOKEN` | Orchestrator | Optional pipeline status notification |
 
----
+## Google Sheets
 
-## Google Sheets Setup
+The spreadsheet must contain these tabs exactly:
 
-### Step 1: Create OAuth Credentials
+| Tab | Purpose | Local output |
+|---|---|---|
+| `Clinic_PN_Automation` | Campaign schedule and copy | `data/clinic_mastersheet.csv` |
+| `Cohort_Mapping` | Campaign ID to cohort dataset and deeplink templates | `data/cohort_mapping.csv` |
+| `Exclusion_Mapping` | Exclusion name to exclusion dataset | `data/exclusion_mapping.csv` |
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a project (or use an existing one)
-3. Enable the **Google Sheets API**
-4. Create **OAuth 2.0 credentials** (Desktop app type)
-5. Download the credentials JSON file
+Stage 1 reads `A:Z` from each tab unless an explicit `--range` is used for the mastersheet.
 
-### Step 2: Place Credentials
+## `Clinic_PN_Automation` Schema
 
-```
-secret/credentials.json   ← downloaded OAuth credentials
-```
+| Column | Required | Notes |
+|---|---|---|
+| `Date` | Yes | `DD/MM/YYYY` |
+| `Day` | No | Human reference |
+| `Slot` | Yes | `Morning`/`Evening`; matching is case-insensitive |
+| `Cohort Name` | Yes | Friendly label for the mastersheet |
+| `Campaign ID` | Yes | Must match `campaign_id` in `Cohort_Mapping` |
+| `Exclusion` | No | Comma-separated names from `Exclusion_Mapping.Exclusion Name` |
+| `Title` | Yes for sending | Push title template |
+| `Content` | Yes for sending | Push body template |
 
-The `secret/token.json` file is auto-created on first run when you authenticate in the browser.
+Stage 2 can generate files for blank title/content rows, but `run_campaign.py` validates title/body for the selected run date before continuing.
 
-### Step 3: Configure Spreadsheet
+## `Cohort_Mapping` Schema
 
-Set `SPREADSHEET_ID` in `.env` to the ID from your Google Sheets URL:
+| Column | Required | Notes |
+|---|---|---|
+| `cohort_name` | No | Friendly reference only |
+| `cohort_code` | Yes | Required automation key |
+| `campaign_id` | Yes | CleverTap External Trigger campaign ID |
+| `cohort_dataset` | Yes | File under `data/cohorts/` |
+| `android_base_url` | Yes for deeplinks | May contain `{date}` and `{priority}` |
+| `ios_base_url` | Yes for deeplinks | May contain `{date}` and `{priority}` |
 
-```
-https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit
-```
-
-The pipeline reads from the sheet tab named **`Clinic_PN_Automation`** (falls back to the first tab if not found).
-
----
-
-## CleverTap Setup
-
-1. Log in to your CleverTap dashboard
-2. Navigate to **Settings → Passcode** to get your `CLEVERTAP_ACCOUNT_ID` and `CLEVERTAP_PASSCODE`
-3. Create or identify the **External Trigger campaigns** and store each campaign ID in the `Cohort_Mapping` sheet (`campaign_id` column)
-4. Set `CLEVERTAP_REGION` to match your account region:
-   - `in1` — India
-   - `us1` — United States
-   - `eu1` — Europe
-   - (See CleverTap docs for other regions)
-
----
-
-## `data/cohort_mapping.csv`
-
-Fetched from the `Cohort_Mapping` Google Sheet tab. Maps each cohort code to its cohort data file and deeplink URL templates.
-
-### Schema
-
-| Column | Description |
-|---|---|
-| `cohort_code` | Canonical cohort code used by the automation |
-| `cohort_name` | Optional friendly name for personal reference |
-| `campaign_id` | CleverTap External Trigger campaign ID for this cohort |
-| `cohort_dataset` | Filename (without path) of the cohort CSV in `data/cohorts/` |
-| `android_base_url` | Android deeplink URL template |
-| `ios_base_url` | iOS deeplink URL template |
-
-## `data/exclusion_mapping.csv`
-
-Fetched from the `Exclusion_Mapping` Google Sheet tab. Maps friendly exclusion names from the mastersheet `Exclusion` column to exclusion datasets.
-
-| Column | Description |
-|---|---|
-| `Exclusion Name` | Name used in the mastersheet `Exclusion` column |
-| `Dataset` | Filename (without path) of the exclusion CSV in `data/cohorts/` |
-
-### URL Templates
-
-URLs can contain these substitution tokens:
-
-- `{date}` — replaced with the campaign date in `DDMonth` format (e.g., `25March`)
-- `{priority}` — replaced with the cohort's priority number (e.g., `1`, `2`)
-
-### Example Entry
+Example:
 
 ```csv
-cohort_code,cohort_name,campaign_id,cohort_dataset,android_base_url,ios_base_url
-Clinic_Vaccination_Due,Vaccination Due,1774333510,vaccination_due.csv,https://supertails.com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC,supertails-com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC
+cohort_name,cohort_code,campaign_id,cohort_dataset,android_base_url,ios_base_url
+Vaccination Due,Clinic_Vaccination_Due,1776770659,vaccination_due.csv,https://supertails.com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B,supertails-com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B
 ```
 
----
+## `Exclusion_Mapping` Schema
 
-## Google Sheets Mastersheet Format
+| Column | Required | Notes |
+|---|---|---|
+| `Exclusion Name` | Yes | Name used in mastersheet `Exclusion` cells |
+| `Dataset` | Yes | File under `data/cohorts/` |
 
-The `Clinic_PN_Automation` tab should have these columns (row 1 = headers):
+Example:
 
-| Column | Notes |
+```csv
+Exclusion Name,Dataset
+Appointment Completed,appointment_completed.csv
+```
+
+## URL Tokens
+
+`android_base_url` and `ios_base_url` may contain:
+
+| Token | Replacement |
 |---|---|
-| `Date` | Format: `DD/MM/YYYY` |
-| `Day` | Day abbreviation: Mon, Tue, etc. |
-| `Slot` | `morning` or `evening`; blank cells inherit the last non-blank value |
-| `Cohort Name` | Friendly mastersheet label; campaign mapping is driven by `Campaign ID` |
-| `Campaign ID` | Must match `campaign_id` in `Cohort_Mapping` |
-| `Exclusion` | (Optional) Comma-separated cohort names to exclude |
-| `Title` | Push notification title; may use template placeholders |
-| `Content` | Push notification body; may use template placeholders |
+| `{date}` | Campaign date as `DDMonth`, such as `04May` |
+| `{priority}` | Slot-tagged priority, such as `1M` or `2E` |
 
-### Slot Inheritance
+## Secrets
 
-If multiple rows share the same date and slot, leave `Slot` blank in continuation rows — the parser fills in the last seen value.
+Do not commit:
 
----
-
-## Security Notes
-
-The following files are in `.gitignore` and must never be committed:
-
-```
-.env
-secret/credentials.json
-secret/token.json
-```
-
-Never hardcode credentials in script files. All credential access goes through `dotenv_values()` from `.env`.
+- `.env`
+- `secrets/credentials.json`
+- `secrets/token.json`
+- Downloaded or generated audience/output files

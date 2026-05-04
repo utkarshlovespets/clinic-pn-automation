@@ -1,190 +1,141 @@
 # Data Formats
 
-Schema reference for all CSV files used and produced by the pipeline.
+CSV schema reference for current inputs, intermediate files, enriched outputs, and logs.
 
----
-
-## Input Data
+## Inputs Fetched From Google Sheets
 
 ### `data/clinic_mastersheet.csv`
 
-Fetched from Google Sheets by Stage 1. Defines the campaign schedule.
-
-| Column | Type | Description |
+| Column | Type | Notes |
 |---|---|---|
 | `Date` | string | `DD/MM/YYYY` |
-| `Day` | string | Day abbreviation (Mon, Tue, ...) |
-| `Slot` | string | `morning` or `evening` |
-| `Cohort Name` | string | Friendly label for your reference |
-| `Campaign ID` | string | Must match `campaign_id` in `cohort_mapping.csv` |
-| `Exclusion` | string | (Optional) Comma-separated cohort names to exclude |
-| `Title` | string | Push notification title template |
-| `Content` | string | Push notification body template |
-
----
+| `Day` | string | Human reference |
+| `Slot` | string | `Morning` or `Evening`; matching is case-insensitive |
+| `Cohort Name` | string | Friendly mastersheet label |
+| `Campaign ID` | string | Matches `campaign_id` in `data/cohort_mapping.csv` |
+| `Exclusion` | string | Optional comma-separated exclusion names |
+| `Title` | string | Push title template |
+| `Content` | string | Push body template |
 
 ### `data/cohort_mapping.csv`
 
-Maps cohort codes to their data files, CleverTap campaign IDs, and URL templates.
+Fetched from `Cohort_Mapping`.
 
-| Column | Type | Description |
+| Column | Type | Notes |
 |---|---|---|
-| `cohort_code` | string | Canonical cohort code used by the automation |
-| `cohort_name` | string | Optional friendly name for personal reference |
-| `campaign_id` | string | CleverTap External Trigger campaign ID for this cohort |
-| `cohort_dataset` | string | Cohort CSV filename in `data/cohorts/` |
-| `android_base_url` | string | Android deeplink URL (may contain `{date}`, `{priority}` tokens) |
-| `ios_base_url` | string | iOS deeplink URL (may contain `{date}`, `{priority}` tokens) |
-
-### `data/exclusion_mapping.csv`
-
-Fetched from the `Exclusion_Mapping` Google Sheet tab.
-
-| Column | Type | Description |
-|---|---|---|
-| `Exclusion Name` | string | Name used in the mastersheet `Exclusion` column |
-| `Dataset` | string | Exclusion CSV filename in `data/cohorts/` |
-
-**Priority Token Format:**
-- Morning campaigns: `{priority}` replaced with `1M`, `2M`, `3M`, ...
-- Evening campaigns: `{priority}` replaced with `1E`, `2E`, `3E`, ...
-
-Example: `https://supertails.com/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxRAJ`
-
-Result (morning, priority 1): `https://supertails.com/clinic?utm_campaign=25March_MP_1M_Clinic_xxRAJ`
-
-Result (evening, priority 3): `https://supertails.com/clinic?utm_campaign=25March_MP_3E_Clinic_xxRAJ`
-
----
-
-### `data/cohorts/*.csv`
-
-User lists per cohort segment. One file per cohort, named to match `cohort_dataset` in the deeplink map.
-
-| Column | Type | Description |
-|---|---|---|
-| `email` | string | User's email address (used as CleverTap identity) |
-| `first_name` | string | Customer's first name (may be blank) |
-| `pet_name` | string | Pet's name (may be blank) |
-
----
-
-## Intermediate Data (Stage 2 Outputs)
-
-Located in `outputs/{DDMMYYYY}_{slot}/`
-
-### `NN_CohortName.csv` (after Stage 2)
-
-One file per cohort. `NN` is the zero-padded priority number (01, 02, ...).
-
-| Column | Type | Description |
-|---|---|---|
-| `Email` | string | User email |
-| `First Name` | string | Customer's first name |
-| `Pet Name` | string | Pet's name |
-
----
-
-### `campaign_meta.csv`
-
-Metadata linking each priority slot to its campaign configuration.
-
-| Column | Type | Description |
-|---|---|---|
-| `priority` | integer | Priority rank (1 = highest) |
-| `cohort_name` | string | Raw cohort name from mastersheet |
-| `title` | string | Title template |
-| `body` | string | Body template |
+| `cohort_name` | string | Personal/reference name only |
+| `cohort_code` | string | Required automation key |
+| `campaign_id` | string | CleverTap External Trigger campaign ID |
+| `cohort_dataset` | string | Cohort CSV filename under `data/cohorts/` |
 | `android_base_url` | string | Android URL template |
 | `ios_base_url` | string | iOS URL template |
 
----
+### `data/exclusion_mapping.csv`
 
-### `summary.csv`
+Fetched from `Exclusion_Mapping`.
 
-Exclusion statistics for the campaign run.
-
-| Column | Type | Description |
+| Column | Type | Notes |
 |---|---|---|
-| `priority` | integer | Priority number |
-| `cohort_name` | string | Cohort name |
-| `input_candidates` | integer | Users in raw cohort CSV |
-| `excluded_by_priority` | integer | Removed by priority deduplication |
-| `excluded_by_exclusion_col` | integer | Removed by explicit exclusion column |
-| `final_count` | integer | Users targeted after all exclusions |
+| `Exclusion Name` | string | Name used in mastersheet `Exclusion` cells |
+| `Dataset` | string | Exclusion CSV filename under `data/cohorts/` |
 
-**Example:**
+### `data/cohorts/*.csv`
 
-```
-priority,cohort_name,input_candidates,excluded_by_priority,excluded_by_exclusion_col,final_count
-1,Rajaji_Nagar_n2b_15km,4688,0,0,4688
-2,Clinic_KN_Mar26,8464,0,0,8464
-3,Clinic_Birthday,3761,471,0,3290
-```
+Audience files used by both campaign cohorts and exclusions.
 
----
-
-## Final Data (Stage 3 Outputs)
-
-### `NN_CohortName.csv` (after Stage 3 enrichment)
-
-Same files as Stage 2 output, with additional columns added in-place.
-
-| Column | Type | Description |
+| Column | Type | Notes |
 |---|---|---|
-| `Email` | string | User email |
-| `First Name` | string | Customer's first name |
-| `Pet Name` | string | Pet's name |
-| `title` | string | Resolved notification title (personalized) |
-| `body` | string | Resolved notification body (personalized) |
-| `campaign_id` | string | Campaign ID copied from `cohort_mapping.csv` for this cohort |
-| `android_deeplink` | string | Final Android URL (date and slot-tagged priority substituted) |
-| `ios_deeplink` | string | Final iOS URL (date and slot-tagged priority substituted) |
+| `email` | string | User identity for CleverTap |
+| `first_name` | string | Optional; first word is used |
+| `pet_name` | string | Optional |
 
-**Example (morning, priority 1):**
-- `android_deeplink`: `https://supertails.com/clinic?utm_campaign=25March_MP_1M_Clinic_xxRAJ`
-- `ios_deeplink`: `https://supertails.com/clinic?utm_campaign=25March_MP_1M_Clinic_xxRAJ`
+## Stage 2 Outputs
 
-**Example (evening, priority 2):**
-- `android_deeplink`: `https://supertails.com/clinic?utm_campaign=25March_MP_2E_Clinic_xxRAJ`
-- `ios_deeplink`: `https://supertails.com/clinic?utm_campaign=25March_MP_2E_Clinic_xxRAJ`
+Located in `outputs/{DDMMYYYY}_{slot}/`.
 
----
+### `NN_{cohort_code}.csv`
 
-## Log Data
+One file per campaign row after priority and explicit exclusions.
 
-### `outputs/log/{DDMMYYYY}_{slot}_dispatch_log.csv`
-
-One row per individual send attempt. Appended to on each run (not overwritten).
-
-| Column | Type | Description |
+| Column | Type | Notes |
 |---|---|---|
-| `email` | string | Recipient email |
-| `cohort_name` | string | Cohort the user belongs to |
-| `priority` | integer | Cohort priority |
-| `title` | string | Notification title sent |
-| `body` | string | Notification body sent |
-| `dry_run` | boolean | `True` if no actual API call was made |
-| `timestamp` | string | ISO 8601 datetime of the attempt |
-| `status` | string | HTTP status code (e.g., `200`) or error message |
+| `Email` | string | Lowercased email |
+| `First Name` | string | First-name value used for personalization |
+| `Pet Name` | string | Pet-name value used for personalization |
 
----
+### `campaign_meta.csv`
 
-## Cohort Segments Reference
+| Column | Type | Notes |
+|---|---|---|
+| `priority` | integer | Row order priority, starting at 1 |
+| `cohort_name` | string | `cohort_code` resolved from `Cohort_Mapping` |
+| `mastersheet_cohort_name` | string | Friendly label from mastersheet |
+| `campaign_id` | string | Campaign ID from mastersheet |
+| `title_template` | string | Raw title template |
+| `content_template` | string | Raw body template |
+| `cohort_size` | integer | Unique candidate emails before filtering |
+| `excluded_by_priority` | integer | Removed because already targeted by a higher-priority row |
+| `excluded_by_exclusion_col` | integer | Removed because of the mastersheet `Exclusion` column |
+| `final_count` | integer | Users written to the priority CSV |
 
-| Filename | Segment Description |
+### `outputs/log/summary/{DDMMYYYY}_{slot}.csv`
+
+Stage 2 writes a compact run summary here.
+
+| Column | Type |
 |---|---|
-| `all_kalyan_nagar.csv` | All customers in Kalyan Nagar pincodes |
-| `all_kr_puram.csv` | All customers in KR Puram pincodes |
-| `all_rajaji_nagar.csv` | All customers in Rajaji Nagar pincodes |
-| `appointment_completed.csv` | Customers who completed a clinic appointment |
-| `lapser_remove.csv` | Lapsed customers (used for exclusion) |
-| `multiple_pet_parents.csv` | Customers with multiple pets |
-| `n2b_bangalore.csv` | New-to-business customers in Bangalore |
-| `n2b_birthday.csv` | New-to-business customers with upcoming pet birthdays |
-| `n2b_dental.csv` | New-to-business customers for dental services |
-| `n2b_gut.csv` | New-to-business customers for gut health services |
-| `n2b_skin.csv` | New-to-business customers for skin health services |
-| `repeat_ahs.csv` | Repeat Animal Health Services customers |
-| `repeat_clinic.csv` | Repeat clinic visitors |
-| `vaccination_due.csv` | Customers with upcoming vaccination appointments |
+| `date` | string |
+| `slot` | string |
+| `priority` | integer |
+| `campaign_id` | string |
+| `utm_campaign` | string |
+| `title_template` | string |
+| `content_template` | string |
+| `final_count` | integer |
+
+## Stage 3 Outputs
+
+Stage 3 enriches the same `NN_{cohort_code}.csv` files in place.
+
+| Added Column | Type | Notes |
+|---|---|---|
+| `title` | string | Personalized title |
+| `body` | string | Personalized body |
+| `campaign_id` | string | Copied from `cohort_mapping.csv` lookup by campaign ID |
+| `android_deeplink` | string | URL with `{date}` and `{priority}` resolved |
+| `ios_deeplink` | string | URL with `{date}` and `{priority}` resolved |
+
+## Stage 4 Logs
+
+Campaign logs are written under:
+
+```text
+outputs/log/dry_run/{DDMMYYYY}_{slot}_campaign_log.csv
+outputs/log/live/{DDMMYYYY}_{slot}_campaign_log.csv
+```
+
+| Column | Type | Notes |
+|---|---|---|
+| `timestamp` | string | Send/log timestamp |
+| `email` | string | Recipient email |
+| `utm_name` | string | Extracted from deeplink URL |
+| `clicked` | string | Blank placeholder |
+| `title` | string | Truncated title preview |
+| `body` | string | Truncated body preview |
+
+## Template Placeholders
+
+`Title` and `Content` support these placeholders in single or double braces:
+
+| Placeholder | Uses | Fallback |
+|---|---|---|
+| `{your pet}` | Pet name | `your pet` |
+| `{your pet's}` | Pet possessive | `your pet's` |
+| `{pet parent}` | First name | `pet parent` |
+
+## Deeplink Tokens
+
+| Token | Replacement |
+|---|---|
+| `{date}` | `DDMonth`, for example `04May` |
+| `{priority}` | Slot-tagged priority, for example `1M`, `2M`, `1E`, `2E` |
