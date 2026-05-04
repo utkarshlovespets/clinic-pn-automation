@@ -20,7 +20,6 @@ import pandas as pd
 from utils import normalize_cohort
 
 COHORT_CODE_COL = "cohort_code"
-LEGACY_COHORT_CODE_COL = "Cohort Name"
 
 
 def build_deeplink(template: str, date_token: str, priority_token: str) -> str:
@@ -50,10 +49,7 @@ def load_deeplink_lookup(path: Path) -> dict[str, tuple[str, str, str]]:
         return {}
 
     df = pd.read_csv(path, dtype=str, keep_default_na=False)
-    cohort_code_col = (
-        COHORT_CODE_COL if COHORT_CODE_COL in df.columns else LEGACY_COHORT_CODE_COL
-    )
-    required = {cohort_code_col, "campaign_id"}
+    required = {COHORT_CODE_COL, "campaign_id"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"cohort_mapping is missing columns: {sorted(missing)}")
@@ -61,7 +57,7 @@ def load_deeplink_lookup(path: Path) -> dict[str, tuple[str, str, str]]:
     lookup: dict[str, tuple[str, str, str]] = {}
     for _, row in df.iterrows():
         campaign_id = str(row.get("campaign_id", "")).strip()
-        cohort_key = normalize_cohort(str(row.get(cohort_code_col, "")).strip())
+        cohort_key = normalize_cohort(str(row.get(COHORT_CODE_COL, "")).strip())
         value = (
             campaign_id,
             str(row.get("android_base_url", "")).strip(),

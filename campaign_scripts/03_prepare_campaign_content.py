@@ -70,7 +70,6 @@ if str(PROJECT_ROOT) not in sys.path:
 from utils import normalize_cohort, resolve_template
 
 COHORT_CODE_COL = "cohort_code"
-LEGACY_COHORT_CODE_COL = "Cohort Name"
 
 
 # -- Deeplink helpers ----------------------------------------------------------
@@ -94,17 +93,14 @@ def load_deeplink_map(path: Path) -> dict:
         raise FileNotFoundError(f"Cohort mapping not found: {path}")
 
     df = pd.read_csv(path, dtype=str, keep_default_na=False)
-    cohort_code_col = (
-        COHORT_CODE_COL if COHORT_CODE_COL in df.columns else LEGACY_COHORT_CODE_COL
-    )
-    required = {cohort_code_col, "campaign_id", "android_base_url", "ios_base_url"}
+    required = {COHORT_CODE_COL, "campaign_id", "android_base_url", "ios_base_url"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"cohort_mapping.csv is missing columns: {sorted(missing)}")
 
     result = {}
     for _, row in df.iterrows():
-        cohort_key = normalize_cohort(row[cohort_code_col])
+        cohort_key = normalize_cohort(row[COHORT_CODE_COL])
         campaign_id = str(row["campaign_id"]).strip()
         value = (
             str(row["android_base_url"]).strip(),

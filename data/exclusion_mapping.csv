@@ -1,4 +1,3 @@
-Exclusion Name,Dataset
+exclusion_name,dataset
 Appointment Completed,appointment_completed.csv
 30_min_delivery,30min_delivery.csv
-lapser remove,lapser_remove.csv

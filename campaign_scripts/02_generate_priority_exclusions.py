@@ -32,7 +32,6 @@ from utils import normalize_cohort, sanitize_filename
 # campaign row, regardless of priority order.
 ENABLE_EXCLUSION_COL: bool = True
 COHORT_CODE_COL = "cohort_code"
-LEGACY_COHORT_CODE_COL = "Cohort Name"
 EXCLUSION_NAME_COL = "exclusion_name"
 EXCLUSION_DATASET_COL = "dataset"
 
@@ -112,10 +111,7 @@ def load_cohort_index_from_map(
 
     map_df = pd.read_csv(cohort_map_path, dtype=str, keep_default_na=False)
 
-    cohort_code_col = (
-        COHORT_CODE_COL if COHORT_CODE_COL in map_df.columns else LEGACY_COHORT_CODE_COL
-    )
-    required = {cohort_code_col, "campaign_id", "cohort_dataset"}
+    required = {COHORT_CODE_COL, "campaign_id", "cohort_dataset"}
     missing = required - set(map_df.columns)
     if missing:
         raise ValueError(
@@ -130,7 +126,7 @@ def load_cohort_index_from_map(
     loaded = 0
 
     for _, row in map_df.iterrows():
-        cohort_name = str(row[cohort_code_col]).strip()
+        cohort_name = str(row[COHORT_CODE_COL]).strip()
         campaign_id = str(row["campaign_id"]).strip()
         dataset_file = str(row["cohort_dataset"]).strip()
 
@@ -243,10 +239,7 @@ def load_campaign_cohort_index_from_map(
         raise FileNotFoundError(f"Cohort map not found: {cohort_map_path}")
 
     map_df = pd.read_csv(cohort_map_path, dtype=str, keep_default_na=False)
-    cohort_code_col = (
-        COHORT_CODE_COL if COHORT_CODE_COL in map_df.columns else LEGACY_COHORT_CODE_COL
-    )
-    required = {cohort_code_col, "campaign_id", "cohort_dataset"}
+    required = {COHORT_CODE_COL, "campaign_id", "cohort_dataset"}
     missing = required - set(map_df.columns)
     if missing:
         raise ValueError(
@@ -260,7 +253,7 @@ def load_campaign_cohort_index_from_map(
     loaded = 0
 
     for _, row in map_df.iterrows():
-        cohort_code = str(row[cohort_code_col]).strip()
+        cohort_code = str(row[COHORT_CODE_COL]).strip()
         campaign_id = str(row["campaign_id"]).strip()
         dataset_file = str(row["cohort_dataset"]).strip()
         if not cohort_code or not dataset_file:
