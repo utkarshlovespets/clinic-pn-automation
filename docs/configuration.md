@@ -77,7 +77,7 @@ The pipeline reads from the sheet tab named **`Clinic_PN_Automation`** (falls ba
 
 1. Log in to your CleverTap dashboard
 2. Navigate to **Settings → Passcode** to get your `CLEVERTAP_ACCOUNT_ID` and `CLEVERTAP_PASSCODE`
-3. Create or identify the **External Trigger campaigns** and store each campaign ID in `data/deeplink_map.csv` (`campaign_id` column)
+3. Create or identify the **External Trigger campaigns** and store each campaign ID in the `Cohort_Mapping` sheet (`campaign_id` column)
 4. Set `CLEVERTAP_REGION` to match your account region:
    - `in1` — India
    - `us1` — United States
@@ -86,19 +86,29 @@ The pipeline reads from the sheet tab named **`Clinic_PN_Automation`** (falls ba
 
 ---
 
-## `data/deeplink_map.csv`
+## `data/cohort_mapping.csv`
 
-Maps each cohort name to its cohort data file and deeplink URL templates.
+Fetched from the `Cohort_Mapping` Google Sheet tab. Maps each cohort code to its cohort data file and deeplink URL templates.
 
 ### Schema
 
 | Column | Description |
 |---|---|
-| `Cohort Name` | Exact cohort name as used in the mastersheet |
+| `cohort_code` | Canonical cohort code used by the automation |
+| `cohort_name` | Optional friendly name for personal reference |
 | `campaign_id` | CleverTap External Trigger campaign ID for this cohort |
 | `cohort_dataset` | Filename (without path) of the cohort CSV in `data/cohorts/` |
 | `android_base_url` | Android deeplink URL template |
 | `ios_base_url` | iOS deeplink URL template |
+
+## `data/exclusion_mapping.csv`
+
+Fetched from the `Exclusion_Mapping` Google Sheet tab. Maps friendly exclusion names from the mastersheet `Exclusion` column to exclusion datasets.
+
+| Column | Description |
+|---|---|
+| `Exclusion Name` | Name used in the mastersheet `Exclusion` column |
+| `Dataset` | Filename (without path) of the exclusion CSV in `data/cohorts/` |
 
 ### URL Templates
 
@@ -110,8 +120,8 @@ URLs can contain these substitution tokens:
 ### Example Entry
 
 ```csv
-Cohort Name,campaign_id,cohort_dataset,android_base_url,ios_base_url
-Clinic_Vaccination_Due,1774333510,vaccination_due.csv,https://supertails.com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC,supertails-com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC
+cohort_code,cohort_name,campaign_id,cohort_dataset,android_base_url,ios_base_url
+Clinic_Vaccination_Due,Vaccination Due,1774333510,vaccination_due.csv,https://supertails.com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC,supertails-com/pages/clinic?utm_campaign={date}_MP_{priority}_Clinic_xxVAC
 ```
 
 ---
@@ -125,7 +135,8 @@ The `Clinic_PN_Automation` tab should have these columns (row 1 = headers):
 | `Date` | Format: `DD/MM/YYYY` |
 | `Day` | Day abbreviation: Mon, Tue, etc. |
 | `Slot` | `morning` or `evening`; blank cells inherit the last non-blank value |
-| `Cohort Name` | Must match a `Cohort Name` in `deeplink_map.csv` |
+| `Cohort Name` | Friendly mastersheet label; campaign mapping is driven by `Campaign ID` |
+| `Campaign ID` | Must match `campaign_id` in `Cohort_Mapping` |
 | `Exclusion` | (Optional) Comma-separated cohort names to exclude |
 | `Title` | Push notification title; may use template placeholders |
 | `Content` | Push notification body; may use template placeholders |

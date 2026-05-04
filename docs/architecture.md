@@ -31,7 +31,8 @@ This design makes it easy to:
   data/clinic_mastersheet.csv   data/cohorts/*.csv
            │                       │
            └───────────┬───────────┘
-                       │  + data/deeplink_map.csv
+                       │  + data/cohort_mapping.csv
+                       │  + data/exclusion_mapping.csv
                        ▼
            ┌───────────────────────────┐
            │ Stage 2                   │
@@ -102,7 +103,7 @@ Outputs one CSV per cohort (numbered by priority) plus a `summary.csv` with excl
 
 ### Stage 3 — Campaign Content (`campaign_scripts/03_prepare_campaign_content.py`)
 
-Reads per-user data and resolves template placeholders (`{your pet}`, `{your pet's}`, `{pet parent}`) against actual first names and pet names. Constructs deeplink URLs by substituting `{date}` and `{priority}` into URL templates from `data/deeplink_map.csv`, and copies cohort-level `campaign_id` into each enriched row.
+Reads per-user data and resolves template placeholders (`{your pet}`, `{your pet's}`, `{pet parent}`) against actual first names and pet names. Constructs deeplink URLs by substituting `{date}` and `{priority}` into URL templates from `data/cohort_mapping.csv`, and copies cohort-level `campaign_id` into each enriched row.
 
 ### Stage 4 — Trigger Campaign (`campaign_scripts/04_trigger_campaign.py`)
 

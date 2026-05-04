@@ -65,7 +65,8 @@ Downloads the campaign schedule from a Google Sheets spreadsheet using the Googl
 | `Date` | Campaign date in `DD/MM/YYYY` format |
 | `Day` | Day of week (e.g., "Mon", "Tue") |
 | `Slot` | `morning` or `evening` (blank rows inherit the last non-blank slot) |
-| `Cohort Name` | Identifier matching a row in `data/deeplink_map.csv` |
+| `Cohort Name` | Friendly label for your reference |
+| `Campaign ID` | Identifier matching `campaign_id` in `data/cohort_mapping.csv` |
 | `Exclusion` | (Optional) Comma-separated cohort names to exclude from this cohort |
 | `Title` | Push notification title template |
 | `Content` | Push notification body template |
@@ -100,7 +101,8 @@ python campaign_scripts/02_generate_priority_exclusions.py --date 25032026 --slo
 ### Input
 
 - `data/clinic_mastersheet.csv`
-- `data/deeplink_map.csv`
+- `data/cohort_mapping.csv`
+- `data/exclusion_mapping.csv`
 - `data/cohorts/*.csv`
 
 ### Output (in `outputs/{DDMMYYYY}_{slot}/`)
@@ -117,9 +119,9 @@ Cohorts are processed in spreadsheet row order (top = highest priority).
 
 **Column-based exclusion:** If the `Exclusion` column names one or more cohorts, members of those cohorts are additionally removed from the current cohort's final list (regardless of priority order).
 
-### Cohort Name Matching
+### Campaign ID Matching
 
-Cohort names are normalized before matching: stripped of apostrophes, lowercased, and non-alphanumeric characters removed. This makes matching robust to minor naming differences between the mastersheet, deeplink map, and cohort filenames.
+Campaign rows are mapped by `Campaign ID`, not by the mastersheet `Cohort Name`. Cohort codes are still normalized for explicit exclusions and older generated outputs: stripped of apostrophes, lowercased, and non-alphanumeric characters removed.
 
 ```
 "Clinic_Gut_N2B_Mar'26"  →  "clinicgutn2bmar26"
@@ -161,7 +163,7 @@ Reads the per-priority cohort CSVs and the `campaign_meta.csv`, resolves message
 
 - `outputs/{DDMMYYYY}_{slot}/NN_CohortName.csv` (columns: `Email`, `First Name`, `Pet Name`)
 - `outputs/{DDMMYYYY}_{slot}/campaign_meta.csv`
-- `data/deeplink_map.csv`
+- `data/cohort_mapping.csv`
 
 ### Output
 
@@ -187,7 +189,7 @@ Result (no names): `"Drop by for your pet's FREE consultation, pet parent!"`
 
 ### Deeplink URL Construction
 
-Deeplink base URLs from `deeplink_map.csv` may contain these substitution tokens:
+Deeplink base URLs from `cohort_mapping.csv` may contain these substitution tokens:
 
 | Token | Replaced With | Example |
 |---|---|---|

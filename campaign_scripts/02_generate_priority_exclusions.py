@@ -7,7 +7,8 @@
 Usage:
     python 02_generate_priority_exclusions.py
     python 02_generate_priority_exclusions.py --clinic-csv data/clinic_mastersheet.csv \\
-        --cohort-map data/deeplink_map.csv --output-dir outputs
+        --cohort-map data/cohort_mapping.csv --exclusion-map data/exclusion_mapping.csv \\
+        --output-dir outputs
 """
 
 import argparse
@@ -30,6 +31,10 @@ from utils import normalize_cohort, sanitize_filename
 # Exclusion-column-based filtering: exclude members of named cohorts from a
 # campaign row, regardless of priority order.
 ENABLE_EXCLUSION_COL: bool = True
+COHORT_CODE_COL = "cohort_code"
+LEGACY_COHORT_CODE_COL = "Cohort Name"
+EXCLUSION_NAME_COL = "Exclusion Name"
+EXCLUSION_DATASET_COL = "Dataset"
 
 
 # -- Exclusion column helper --------------------------------------------------
@@ -79,11 +84,17 @@ def extract_utm_campaign(url: str) -> str:
 def load_cohort_index_from_map(
     cohort_map_path: Path,
     cohorts_dir: Path,
-) -> Tuple[Dict[str, List[Tuple[str, str, str]]], int, Dict[str, str]]:
+) -> Tuple[
+    Dict[str, List[Tuple[str, str, str]]],
+    Dict[str, List[Tuple[str, str, str]]],
+    int,
+    Dict[str, str],
+    Dict[str, str],
+]:
     """Build cohort index by loading individual cohort CSV files.
 
-    Reads cohort_map_path (deeplink_map.csv) to discover the mapping:
-        Cohort Name -> cohort_dataset filename in cohorts_dir
+    Reads cohort_map_path to discover the mapping:
+        campaign_id -> cohort_dataset filename in cohorts_dir
 
     For each cohort with a non-blank cohort_dataset, loads the CSV from
     cohorts_dir and adds its users to the index.
@@ -91,27 +102,36 @@ def load_cohort_index_from_map(
     Expected cohort CSV columns (case-insensitive): email, first_name, pet_name
 
     Returns:
-        {normalized_cohort_key: [(email, first_name, pet_name), ...]}
+        campaign_index:
+            {campaign_id: [(email, first_name, pet_name), ...]}
+        exclusion_index:
+            {normalized_cohort_key: [(email, first_name, pet_name), ...]}
     """
     if not cohort_map_path.exists():
         raise FileNotFoundError(f"Cohort map not found: {cohort_map_path}")
 
     map_df = pd.read_csv(cohort_map_path, dtype=str, keep_default_na=False)
 
-    required = {"Cohort Name", "cohort_dataset"}
+    cohort_code_col = (
+        COHORT_CODE_COL if COHORT_CODE_COL in map_df.columns else LEGACY_COHORT_CODE_COL
+    )
+    required = {cohort_code_col, "campaign_id", "cohort_dataset"}
     missing = required - set(map_df.columns)
     if missing:
         raise ValueError(
             f"Cohort map is missing columns: {sorted(missing)}. "
-            "Add a 'cohort_dataset' column to deeplink_map.csv."
+            "Fetch or update the Cohort_Mapping sheet."
         )
 
-    index: Dict[str, List[Tuple[str, str, str]]] = {}
+    campaign_index: Dict[str, List[Tuple[str, str, str]]] = {}
+    exclusion_index: Dict[str, List[Tuple[str, str, str]]] = {}
     deeplink_url_map: Dict[str, str] = {}
+    campaign_cohort_name_map: Dict[str, str] = {}
     loaded = 0
 
     for _, row in map_df.iterrows():
-        cohort_name = str(row["Cohort Name"]).strip()
+        cohort_name = str(row[cohort_code_col]).strip()
+        campaign_id = str(row["campaign_id"]).strip()
         dataset_file = str(row["cohort_dataset"]).strip()
 
         if not cohort_name or not dataset_file:
@@ -124,7 +144,9 @@ def load_cohort_index_from_map(
 
         cohort_key = normalize_cohort(cohort_name)
         csv_path = cohorts_dir / dataset_file
-        deeplink_url_map[cohort_key] = str(row.get("android_base_url", "")).strip()
+        if campaign_id:
+            deeplink_url_map[campaign_id] = str(row.get("android_base_url", "")).strip()
+            campaign_cohort_name_map[campaign_id] = cohort_name
 
         if not csv_path.exists():
             print(
@@ -163,23 +185,148 @@ def load_cohort_index_from_map(
                 str(user_row.get("pet_name", "")).strip(),
             ))
 
-        index[cohort_key] = entries
+        exclusion_index[cohort_key] = entries
+        if campaign_id:
+            campaign_index[campaign_id] = entries
         loaded += 1
 
-    return index, loaded, deeplink_url_map
+    return campaign_index, exclusion_index, loaded, deeplink_url_map, campaign_cohort_name_map
+
+
+def load_user_entries(csv_path: Path, dataset_label: str) -> List[Tuple[str, str, str]]:
+    """Load one cohort/exclusion user CSV into normalized user tuples."""
+    if not csv_path.exists():
+        print(
+            f"  [WARNING] Cohort file not found for '{dataset_label}': {csv_path} "
+            "-- skipping."
+        )
+        return []
+
+    df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
+    df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+    if "email" not in df.columns:
+        print(f"  [WARNING] '{csv_path.name}' has no 'email' column -- skipping.")
+        return []
+
+    for col in ("first_name", "pet_name"):
+        if col not in df.columns:
+            df[col] = ""
+
+    entries = []
+    for _, user_row in df.iterrows():
+        email = str(user_row["email"]).strip().lower()
+        if not email or "@" not in email or email == "#error!":
+            continue
+        raw_first = str(user_row.get("first_name", "")).strip()
+        first_name = raw_first.split()[0] if raw_first else ""
+        entries.append((
+            email,
+            first_name,
+            str(user_row.get("pet_name", "")).strip(),
+        ))
+
+    return entries
+
+
+def load_campaign_cohort_index_from_map(
+    cohort_map_path: Path,
+    cohorts_dir: Path,
+) -> Tuple[
+    Dict[str, List[Tuple[str, str, str]]],
+    int,
+    Dict[str, str],
+    Dict[str, str],
+]:
+    """Build campaign cohort index from Cohort_Mapping export."""
+    if not cohort_map_path.exists():
+        raise FileNotFoundError(f"Cohort map not found: {cohort_map_path}")
+
+    map_df = pd.read_csv(cohort_map_path, dtype=str, keep_default_na=False)
+    cohort_code_col = (
+        COHORT_CODE_COL if COHORT_CODE_COL in map_df.columns else LEGACY_COHORT_CODE_COL
+    )
+    required = {cohort_code_col, "campaign_id", "cohort_dataset"}
+    missing = required - set(map_df.columns)
+    if missing:
+        raise ValueError(
+            f"Cohort map is missing columns: {sorted(missing)}. "
+            "Fetch or update the Cohort_Mapping sheet."
+        )
+
+    campaign_index: Dict[str, List[Tuple[str, str, str]]] = {}
+    deeplink_url_map: Dict[str, str] = {}
+    campaign_cohort_name_map: Dict[str, str] = {}
+    loaded = 0
+
+    for _, row in map_df.iterrows():
+        cohort_code = str(row[cohort_code_col]).strip()
+        campaign_id = str(row["campaign_id"]).strip()
+        dataset_file = str(row["cohort_dataset"]).strip()
+        if not cohort_code or not dataset_file:
+            continue
+
+        if campaign_id:
+            deeplink_url_map[campaign_id] = str(row.get("android_base_url", "")).strip()
+            campaign_cohort_name_map[campaign_id] = cohort_code
+
+        entries = load_user_entries(cohorts_dir / dataset_file, cohort_code)
+        if not entries:
+            continue
+
+        if campaign_id:
+            campaign_index[campaign_id] = entries
+        loaded += 1
+
+    return campaign_index, loaded, deeplink_url_map, campaign_cohort_name_map
+
+
+def load_exclusion_index_from_map(
+    exclusion_map_path: Path,
+    cohorts_dir: Path,
+) -> Tuple[Dict[str, List[Tuple[str, str, str]]], int]:
+    """Build exclusion index from Exclusion_Mapping export."""
+    if not exclusion_map_path.exists():
+        raise FileNotFoundError(f"Exclusion map not found: {exclusion_map_path}")
+
+    map_df = pd.read_csv(exclusion_map_path, dtype=str, keep_default_na=False)
+    required = {EXCLUSION_NAME_COL, EXCLUSION_DATASET_COL}
+    missing = required - set(map_df.columns)
+    if missing:
+        raise ValueError(
+            f"Exclusion map is missing columns: {sorted(missing)}. "
+            "Fetch or update the Exclusion_Mapping sheet."
+        )
+
+    exclusion_index: Dict[str, List[Tuple[str, str, str]]] = {}
+    loaded = 0
+
+    for _, row in map_df.iterrows():
+        exclusion_name = str(row[EXCLUSION_NAME_COL]).strip()
+        dataset_file = str(row[EXCLUSION_DATASET_COL]).strip()
+        if not exclusion_name or not dataset_file:
+            continue
+
+        entries = load_user_entries(cohorts_dir / dataset_file, exclusion_name)
+        if not entries:
+            continue
+
+        exclusion_index[normalize_cohort(exclusion_name)] = entries
+        loaded += 1
+
+    return exclusion_index, loaded
 
 
 def load_clinic_mastersheet(path: Path) -> pd.DataFrame:
     """Load and validate clinic_mastersheet.csv.
 
-    Expected columns: Date, Day, Slot, Cohort Name, Exclusion, Title, Content
+    Expected columns: Date, Day, Slot, Cohort Name, Campaign ID, Exclusion, Title, Content
     Adds '_date' (Timestamp) and '_slot' (lowercase string) columns.
-    Rows with unparseable dates, blank cohort names, or both Title AND Content
-    blank are filtered out.
+    Rows with unparseable dates or blank campaign IDs are filtered out.
     """
     df = pd.read_csv(path, dtype=str, keep_default_na=False)
 
-    required = {"Date", "Cohort Name", "Title", "Content"}
+    required = {"Date", "Cohort Name", "Campaign ID", "Title", "Content"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(
@@ -196,8 +343,7 @@ def load_clinic_mastersheet(path: Path) -> pd.DataFrame:
 
     usable = (
         df["_date"].notna()
-        & df["Cohort Name"].str.strip().ne("")
-        & ~(df["Title"].str.strip().eq("") & df["Content"].str.strip().eq(""))
+        & df["Campaign ID"].str.strip().ne("")
     )
     df = df[usable].copy().reset_index(drop=True)
 
@@ -209,7 +355,9 @@ def load_clinic_mastersheet(path: Path) -> pd.DataFrame:
 def build_priority_files(
     clinic_df: pd.DataFrame,
     cohort_index: Dict[str, List[Tuple[str, str, str]]],
+    exclusion_index: Dict[str, List[Tuple[str, str, str]]],
     deeplink_url_map: Dict[str, str],
+    campaign_cohort_name_map: Dict[str, str],
     run_date: pd.Timestamp,
     run_slot: str,
     output_dir: Path,
@@ -233,9 +381,9 @@ def build_priority_files(
     if run_df.empty:
         return False
 
-    # Deduplicate: if the same cohort appears multiple times for the same
+    # Deduplicate: if the same campaign appears multiple times for the same
     # date+slot, keep only the first occurrence (first row = highest priority).
-    run_df = run_df.drop_duplicates(subset=["Cohort Name"], keep="first").reset_index(
+    run_df = run_df.drop_duplicates(subset=["Campaign ID"], keep="first").reset_index(
         drop=True
     )
 
@@ -246,10 +394,11 @@ def build_priority_files(
     campaign_meta_rows = []
 
     for priority, (_, row) in enumerate(run_df.iterrows(), start=1):
-        cohort_name = str(row["Cohort Name"]).strip()
-        cohort_key = normalize_cohort(cohort_name)
+        mastersheet_cohort_name = str(row["Cohort Name"]).strip()
+        campaign_id = str(row["Campaign ID"]).strip()
+        cohort_name = campaign_cohort_name_map.get(campaign_id, mastersheet_cohort_name)
 
-        candidate_tuples = cohort_index.get(cohort_key, [])
+        candidate_tuples = cohort_index.get(campaign_id, [])
         input_candidates = len({t[0] for t in candidate_tuples})  # unique emails
 
         # -- Exclusion column -----------------------------------------------
@@ -259,7 +408,7 @@ def build_priority_files(
             exclusion_keys = parse_exclusion_col(raw_exclusion)
             exclusion_emails: set = set()
             for ex_key in exclusion_keys:
-                for t in cohort_index.get(ex_key, []):
+                for t in exclusion_index.get(ex_key, []):
                     exclusion_emails.add(t[0])
             # Preserve the original names from the Exclusion cell for reporting.
             if raw_exclusion:
@@ -301,6 +450,8 @@ def build_priority_files(
             {
                 "priority": priority,
                 "cohort_name": cohort_name,
+                "mastersheet_cohort_name": mastersheet_cohort_name,
+                "campaign_id": campaign_id,
                 "title_template": str(row.get("Title", "")).strip(),
                 "content_template": str(row.get("Content", "")).strip(),
                 "input_candidates": input_candidates,
@@ -315,6 +466,8 @@ def build_priority_files(
             {
                 "priority": priority,
                 "cohort_name": cohort_name,
+                "mastersheet_cohort_name": mastersheet_cohort_name,
+                "campaign_id": campaign_id,
                 "title_template": str(row.get("Title", "")).strip(),
                 "content_template": str(row.get("Content", "")).strip(),
                 "cohort_size": input_candidates,
@@ -330,8 +483,8 @@ def build_priority_files(
     log_summary_rows = []
     for row in summary_rows:
         priority = int(row["priority"])
-        cohort_key = normalize_cohort(str(row["cohort_name"]))
-        deeplink_tpl = deeplink_url_map.get(cohort_key, "")
+        campaign_id = str(row["campaign_id"]).strip()
+        deeplink_tpl = deeplink_url_map.get(campaign_id, "")
         deeplink_priority = get_deeplink_priority_token(run_slot, priority)
         resolved_url = build_deeplink(deeplink_tpl, date_formatted, deeplink_priority)
         log_summary_rows.append(
@@ -339,6 +492,7 @@ def build_priority_files(
                 "date": date_value,
                 "slot": slot_value,
                 "priority": priority,
+                "campaign_id": campaign_id,
                 "utm_campaign": extract_utm_campaign(resolved_url),
                 "title_template": str(row.get("title_template", "")).strip(),
                 "content_template": str(row.get("content_template", "")).strip(),
@@ -355,6 +509,7 @@ def build_priority_files(
             "date",
             "slot",
             "priority",
+            "campaign_id",
             "utm_campaign",
             "title_template",
             "content_template",
@@ -395,11 +550,19 @@ def main() -> None:
     )
     parser.add_argument(
         "--cohort-map",
-        default="data/deeplink_map.csv",
+        default="data/cohort_mapping.csv",
         help=(
-            "Path to deeplink_map.csv with a 'cohort_dataset' column mapping each "
-            "cohort to its CSV file in data/cohorts/ "
-            "(default: data/deeplink_map.csv)"
+            "Path to Cohort_Mapping export with cohort_code, campaign_id, "
+            "cohort_dataset, and deeplink templates "
+            "(default: data/cohort_mapping.csv)"
+        ),
+    )
+    parser.add_argument(
+        "--exclusion-map",
+        default="data/exclusion_mapping.csv",
+        help=(
+            "Path to Exclusion_Mapping export with 'Exclusion Name' and 'Dataset' "
+            "columns (default: data/exclusion_mapping.csv)"
         ),
     )
     parser.add_argument(
@@ -431,6 +594,9 @@ def main() -> None:
     raw_cohort_map_path = Path(args.cohort_map)
     cohort_map_path = raw_cohort_map_path if raw_cohort_map_path.is_absolute() else (project_root / raw_cohort_map_path).resolve()
 
+    raw_exclusion_map_path = Path(args.exclusion_map)
+    exclusion_map_path = raw_exclusion_map_path if raw_exclusion_map_path.is_absolute() else (project_root / raw_exclusion_map_path).resolve()
+
     raw_cohorts_dir = Path(args.cohorts_dir)
     cohorts_dir = raw_cohorts_dir if raw_cohorts_dir.is_absolute() else (project_root / raw_cohorts_dir).resolve()
 
@@ -441,14 +607,25 @@ def main() -> None:
         raise FileNotFoundError(f"clinic_mastersheet not found: {clinic_path}")
     if not cohort_map_path.exists():
         raise FileNotFoundError(f"Cohort map not found: {cohort_map_path}")
+    if not exclusion_map_path.exists():
+        raise FileNotFoundError(f"Exclusion map not found: {exclusion_map_path}")
 
     print("Loading data...")
     clinic_df = load_clinic_mastersheet(clinic_path)
-    cohort_index, loaded_count, deeplink_url_map = load_cohort_index_from_map(cohort_map_path, cohorts_dir)
+    (
+        cohort_index,
+        loaded_count,
+        deeplink_url_map,
+        campaign_cohort_name_map,
+    ) = load_campaign_cohort_index_from_map(cohort_map_path, cohorts_dir)
+    exclusion_index, exclusion_loaded_count = load_exclusion_index_from_map(
+        exclusion_map_path, cohorts_dir
+    )
 
     total_users = sum(len(v) for v in cohort_index.values())
     print(f"  Clinic mastersheet : {len(clinic_df)} usable rows")
-    print(f"  Cohort files loaded: {loaded_count} file(s), {total_users} users across {len(cohort_index)} cohort(s)")
+    print(f"  Cohort files loaded: {loaded_count} file(s), {total_users} users across {len(cohort_index)} campaign(s)")
+    print(f"  Exclusion files loaded: {exclusion_loaded_count} file(s)")
     print()
 
     today = pd.Timestamp.now().normalize()
@@ -477,7 +654,14 @@ def main() -> None:
         for run_slot in run_slots:
             out_dir = base_output / f"{run_date.strftime('%d%m%Y')}_{run_slot}"
             found = build_priority_files(
-                clinic_df, cohort_index, deeplink_url_map, run_date, run_slot, out_dir
+                clinic_df,
+                cohort_index,
+                exclusion_index,
+                deeplink_url_map,
+                campaign_cohort_name_map,
+                run_date,
+                run_slot,
+                out_dir,
             )
             if not found:
                 print(

@@ -16,7 +16,11 @@ from googleapiclient.errors import HttpError
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 WORKSHEET_NAME = "Clinic_PN_Automation"
+COHORT_MAPPING_WORKSHEET_NAME = "Cohort_Mapping"
+EXCLUSION_MAPPING_WORKSHEET_NAME = "Exclusion_Mapping"
 DEFAULT_OUTPUT = "data/clinic_mastersheet.csv"
+DEFAULT_COHORT_MAPPING_OUTPUT = "data/cohort_mapping.csv"
+DEFAULT_EXCLUSION_MAPPING_OUTPUT = "data/exclusion_mapping.csv"
 DEFAULT_COLUMNS_RANGE = "A:Z"
 DISCOUNT_PLACEHOLDER_RE = re.compile(r"x\s*x\s*%", re.IGNORECASE)
 
@@ -93,38 +97,58 @@ def get_first_sheet_title(service: Any, spreadsheet_id: str) -> str:
 	return sheets[0]["properties"]["title"]
 
 
-def values_to_csv(values: List[List[str]], output_path: Path) -> None:
+def values_to_csv(
+	values: List[List[str]],
+	output_path: Path,
+	apply_discount_cleanup: bool = True,
+) -> None:
 	if not values:
 		raise ValueError("No data returned from Google Sheets. Check spreadsheet ID and range.")
 
 	max_cols = max(len(row) for row in values)
 	normalized_rows = [row + [""] * (max_cols - len(row)) for row in values]
 
-	header = normalized_rows[0] if normalized_rows else []
-	header_map = {str(col).strip().lower(): idx for idx, col in enumerate(header)}
-	title_idx = header_map.get("title")
-	content_idx = header_map.get("content")
+	if apply_discount_cleanup:
+		header = normalized_rows[0] if normalized_rows else []
+		header_map = {str(col).strip().lower(): idx for idx, col in enumerate(header)}
+		title_idx = header_map.get("title")
+		content_idx = header_map.get("content")
 
-	# Some sheets may be exported without a header row.
-	# In that case, clinic mastersheet columns are expected as:
-	# Date, Day, Slot, Cohort Name, Exclusion, Title, Content
-	if title_idx is None and content_idx is None:
-		max_cols_count = len(header)
-		if max_cols_count >= 7:
-			title_idx = 5
-			content_idx = 6
+		# Some sheets may be exported without a header row.
+		# In that case, clinic mastersheet columns are expected as:
+		# Date, Day, Slot, Cohort Name, Campaign ID, Exclusion, Title, Content
+		if title_idx is None and content_idx is None:
+			max_cols_count = len(header)
+			if max_cols_count >= 8:
+				title_idx = 6
+				content_idx = 7
 
-	if title_idx is not None or content_idx is not None:
-		for row in normalized_rows[1:]:
-			if title_idx is not None:
-				row[title_idx] = DISCOUNT_PLACEHOLDER_RE.sub("10%", str(row[title_idx]))
-			if content_idx is not None:
-				row[content_idx] = DISCOUNT_PLACEHOLDER_RE.sub("10%", str(row[content_idx]))
+		if title_idx is not None or content_idx is not None:
+			for row in normalized_rows[1:]:
+				if title_idx is not None:
+					row[title_idx] = DISCOUNT_PLACEHOLDER_RE.sub("10%", str(row[title_idx]))
+				if content_idx is not None:
+					row[content_idx] = DISCOUNT_PLACEHOLDER_RE.sub("10%", str(row[content_idx]))
 
 	output_path.parent.mkdir(parents=True, exist_ok=True)
 	with output_path.open("w", newline="", encoding="utf-8") as csv_file:
 		writer = csv.writer(csv_file)
 		writer.writerows(normalized_rows)
+
+
+def fetch_values_to_csv(
+	service: Any,
+	spreadsheet_id: str,
+	worksheet_name: str,
+	output_path: Path,
+	columns_range: str = DEFAULT_COLUMNS_RANGE,
+	apply_discount_cleanup: bool = False,
+) -> int:
+	"""Fetch one worksheet by name and save it as CSV. Returns data row count."""
+	data_range = build_range(worksheet_name, columns_range)
+	values = fetch_sheet_values(service, spreadsheet_id, data_range)
+	values_to_csv(values, output_path, apply_discount_cleanup=apply_discount_cleanup)
+	return len(values) - 1 if values else 0
 
 
 def main() -> None:
@@ -166,6 +190,21 @@ def main() -> None:
 		default=DEFAULT_OUTPUT,
 		help="Path to save output CSV.",
 	)
+	parser.add_argument(
+		"--cohort-mapping-output",
+		default=DEFAULT_COHORT_MAPPING_OUTPUT,
+		help="Path to save Cohort_Mapping CSV.",
+	)
+	parser.add_argument(
+		"--exclusion-mapping-output",
+		default=DEFAULT_EXCLUSION_MAPPING_OUTPUT,
+		help="Path to save Exclusion_Mapping CSV.",
+	)
+	parser.add_argument(
+		"--skip-mapping-fetch",
+		action="store_true",
+		help="Only fetch the clinic mastersheet; skip Cohort_Mapping and Exclusion_Mapping.",
+	)
 
 	args = parser.parse_args()
 
@@ -175,6 +214,12 @@ def main() -> None:
 	credentials_path = resolve_path(args.credentials, "secrets/credentials.json", project_root)
 	token_path = resolve_path(args.token, "secrets/token.json", project_root)
 	output_path = resolve_path(args.output, DEFAULT_OUTPUT, project_root)
+	cohort_mapping_output_path = resolve_path(
+		args.cohort_mapping_output, DEFAULT_COHORT_MAPPING_OUTPUT, project_root
+	)
+	exclusion_mapping_output_path = resolve_path(
+		args.exclusion_mapping_output, DEFAULT_EXCLUSION_MAPPING_OUTPUT, project_root
+	)
 
 	if not credentials_path.exists():
 		raise FileNotFoundError(f"Credentials file not found: {credentials_path}")
@@ -204,6 +249,31 @@ def main() -> None:
 	data_rows = len(values) - 1 if values else 0
 	print(f"Fetched {data_rows} data rows from {final_range}.")
 	print(f"Saved CSV to: {output_path}")
+
+	if not args.skip_mapping_fetch:
+		cohort_rows = fetch_values_to_csv(
+			service,
+			args.spreadsheet_id,
+			COHORT_MAPPING_WORKSHEET_NAME,
+			cohort_mapping_output_path,
+		)
+		print(
+			f"Fetched {cohort_rows} data rows from "
+			f"{build_range(COHORT_MAPPING_WORKSHEET_NAME)}."
+		)
+		print(f"Saved CSV to: {cohort_mapping_output_path}")
+
+		exclusion_rows = fetch_values_to_csv(
+			service,
+			args.spreadsheet_id,
+			EXCLUSION_MAPPING_WORKSHEET_NAME,
+			exclusion_mapping_output_path,
+		)
+		print(
+			f"Fetched {exclusion_rows} data rows from "
+			f"{build_range(EXCLUSION_MAPPING_WORKSHEET_NAME)}."
+		)
+		print(f"Saved CSV to: {exclusion_mapping_output_path}")
 
 
 if __name__ == "__main__":

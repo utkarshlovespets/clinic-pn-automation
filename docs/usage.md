@@ -182,7 +182,7 @@ Delete `secret/token.json` and re-run Stage 1. A browser window will open for re
 
 ### Cohort CSV not found
 
-Check that the `cohort_dataset` value in `data/deeplink_map.csv` matches an actual filename in `data/cohorts/`. Cohort name matching is normalized (case-insensitive, special characters stripped), but the filename must exist.
+Check that the `cohort_dataset` value in `data/cohort_mapping.csv` and the `Dataset` value in `data/exclusion_mapping.csv` match actual filenames in `data/cohorts/`. Campaign rows are mapped by `campaign_id`; exclusion rows are mapped by `Exclusion Name`.
 
 ### CleverTap API returns 401
 

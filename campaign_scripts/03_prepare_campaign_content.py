@@ -7,7 +7,7 @@ with a dynamic date substitution, and writes the enriched CSVs back in place.
 Added columns:
     title           -- resolved push notification title
     body           -- resolved push notification body
-    campaign_id      -- CleverTap campaign ID from deeplink_map.csv
+    campaign_id      -- CleverTap campaign ID from cohort_mapping.csv
     android_deeplink -- Android deeplink URL with {date} placeholder filled in
     ios_deeplink     -- iOS universal link URL with {date} placeholder filled in
 
@@ -18,20 +18,21 @@ title / body rules:
     (No CleverTap Liquid tags -- values are always fully resolved strings.)
 
 Deeplink rules:
-    - URL templates are read from a deeplink map CSV (--deeplink-map flag).
+    - URL templates are read from a cohort mapping CSV (--deeplink-map flag).
     - Each URL template may contain {date} and {priority} placeholders:
         {date}     -> DDMonth (e.g. "18March") from the output directory name
         {priority} -> cohort priority integer (1 = first/highest in the slot)
-    - Cohort names in the deeplink map are matched via normalize_cohort() so
-      apostrophes and casing differences are handled automatically.
+    - Campaign IDs are used as the primary lookup key into cohort_mapping.csv.
+      Cohort names remain available as a fallback for older output folders.
     - If a cohort has no entry in the deeplink map, android_deeplink and
       ios_deeplink are written as empty strings (no crash).
-    - campaign_id is copied as-is from deeplink_map.csv into every row for
+    - campaign_id is copied as-is from cohort_mapping.csv into every row for
       that cohort. Stage 4 consumes this value while triggering CleverTap.
     - If --deeplink-map is not provided, deeplink columns are omitted entirely.
 
-deeplink_map.csv column format:
-    Cohort Name      -- matches cohort names in clinic_mastersheet.csv
+cohort_mapping.csv column format:
+    cohort_code      -- canonical cohort code used by the automation
+    cohort_name      -- optional friendly name for personal reference
     campaign_id      -- CleverTap External Trigger campaign ID for this cohort
     android_base_url -- full Android URL template; use {date} where the date goes
     ios_base_url     -- full iOS URL template; use {date} where the date goes
@@ -50,7 +51,7 @@ further template resolution.
 Usage:
     python 03_prepare_campaign_content.py --output-dir outputs/19032026_morning
     python 03_prepare_campaign_content.py --output-dir outputs/19032026_morning \\
-        --deeplink-map data/deeplink_map.csv
+        --deeplink-map data/cohort_mapping.csv
 """
 
 import argparse
@@ -68,40 +69,52 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from utils import normalize_cohort, resolve_template
 
+COHORT_CODE_COL = "cohort_code"
+LEGACY_COHORT_CODE_COL = "Cohort Name"
+
 
 # -- Deeplink helpers ----------------------------------------------------------
 
 def load_deeplink_map(path: Path) -> dict:
-    """Load deeplink_map.csv and return a normalized-cohort-key lookup.
+    """Load cohort_mapping.csv and return campaign/cohort lookup keys.
 
-    Expected columns: Cohort Name, campaign_id, android_base_url, ios_base_url
+    Expected columns: cohort_code, campaign_id, android_base_url, ios_base_url
 
     Returns:
-        {normalized_cohort_key: (android_url_template, ios_url_template, campaign_id)}
+        {
+            "cid:<campaign_id>": (android_url_template, ios_url_template, campaign_id),
+            "cohort:<normalized_cohort_key>": (...),
+        }
 
     Raises:
         FileNotFoundError: If the file does not exist.
         ValueError:        If required columns are missing.
     """
     if not path.exists():
-        raise FileNotFoundError(f"Deeplink map not found: {path}")
+        raise FileNotFoundError(f"Cohort mapping not found: {path}")
 
     df = pd.read_csv(path, dtype=str, keep_default_na=False)
-    required = {"Cohort Name", "campaign_id", "android_base_url", "ios_base_url"}
+    cohort_code_col = (
+        COHORT_CODE_COL if COHORT_CODE_COL in df.columns else LEGACY_COHORT_CODE_COL
+    )
+    required = {cohort_code_col, "campaign_id", "android_base_url", "ios_base_url"}
     missing = required - set(df.columns)
     if missing:
-        raise ValueError(f"deeplink_map.csv is missing columns: {sorted(missing)}")
+        raise ValueError(f"cohort_mapping.csv is missing columns: {sorted(missing)}")
 
     result = {}
     for _, row in df.iterrows():
-        key = normalize_cohort(row["Cohort Name"])
-        if not key:
-            continue
-        result[key] = (
+        cohort_key = normalize_cohort(row[cohort_code_col])
+        campaign_id = str(row["campaign_id"]).strip()
+        value = (
             str(row["android_base_url"]).strip(),
             str(row["ios_base_url"]).strip(),
-            str(row["campaign_id"]).strip(),
+            campaign_id,
         )
+        if campaign_id:
+            result[f"cid:{campaign_id}"] = value
+        if cohort_key:
+            result[f"cohort:{cohort_key}"] = value
     return result
 
 
@@ -155,7 +168,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
 
     Args:
         output_dir:        Path to a slot output directory (e.g. outputs/19032026_morning/).
-        deeplink_map_path: Optional path to deeplink_map.csv. When provided, appends
+        deeplink_map_path: Optional path to cohort_mapping.csv. When provided, appends
                            campaign_id, android_deeplink, and ios_deeplink columns.
                            When None, those columns are omitted.
 
@@ -176,7 +189,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
     if missing:
         raise ValueError(f"campaign_meta.csv is missing columns: {sorted(missing)}")
 
-    # Build priority -> (cohort_name, title_template, content_template) lookup.
+    # Build priority -> (cohort_name, campaign_id, title_template, content_template) lookup.
     meta_lookup: dict = {}
     for _, row in meta_df.iterrows():
         try:
@@ -185,6 +198,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
             continue
         meta_lookup[p] = (
             str(row["cohort_name"]).strip(),
+            str(row.get("campaign_id", "")).strip(),
             str(row["title_template"]).strip(),
             str(row["content_template"]).strip(),
         )
@@ -217,7 +231,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
     use_deeplinks = deeplink_map_path is not None
     if use_deeplinks:
         deeplink_map = load_deeplink_map(deeplink_map_path)
-        print(f"  Deeplink map loaded: {len(deeplink_map)} cohort(s) mapped.")
+        print(f"  Cohort mapping loaded: {len(deeplink_map)} lookup key(s) mapped.")
 
     # Date for {date} substitution in URL templates (e.g. "19March").
     date_formatted = format_run_date(output_dir)
@@ -266,7 +280,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
             )
             continue
 
-        cohort_name, title_tpl, content_tpl = meta_lookup[priority]
+        cohort_name, meta_campaign_id, title_tpl, content_tpl = meta_lookup[priority]
         deeplink_cohort = file_cohort_name or cohort_name
 
         # Resolve deeplinks for this cohort (same value for every user in the file).
@@ -276,8 +290,9 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
         if use_deeplinks:
             deeplink_priority = get_deeplink_priority_token(output_dir, priority)
             cohort_key = normalize_cohort(deeplink_cohort)
-            if cohort_key in deeplink_map:
-                android_tpl, ios_tpl, campaign_id = deeplink_map[cohort_key]
+            deeplink_key = f"cid:{meta_campaign_id}" if meta_campaign_id else f"cohort:{cohort_key}"
+            if deeplink_key in deeplink_map:
+                android_tpl, ios_tpl, campaign_id = deeplink_map[deeplink_key]
                 if not campaign_id:
                     print(
                         f"  [WARNING] {csv_path.name}: '{deeplink_cohort}' has blank "
@@ -286,7 +301,8 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
             else:
                 android_tpl, ios_tpl, campaign_id = "", "", ""
                 print(
-                    f"  [WARNING] {csv_path.name}: '{deeplink_cohort}' not in deeplink map "
+                    f"  [WARNING] {csv_path.name}: campaign_id '{meta_campaign_id}' "
+                    f"('{deeplink_cohort}') not in deeplink map "
                     "-- campaign/deeplink columns will be empty."
                 )
             android_deeplink = build_deeplink(android_tpl, date_formatted, deeplink_priority)
@@ -387,13 +403,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--deeplink-map",
-        default="data/deeplink_map.csv",
+        default="data/cohort_mapping.csv",
         help=(
-            "Path to deeplink_map.csv "
-            "(columns: Cohort Name, campaign_id, android_base_url, ios_base_url). "
+            "Path to cohort_mapping.csv "
+            "(columns: cohort_code, cohort_name, campaign_id, android_base_url, ios_base_url). "
             "URL templates may contain {date} and {priority} placeholders. "
             "Appends campaign_id, android_deeplink, and ios_deeplink columns when the file exists. "
-            "(default: data/deeplink_map.csv)"
+            "(default: data/cohort_mapping.csv)"
         ),
     )
     args = parser.parse_args()
@@ -401,7 +417,7 @@ def main() -> None:
     raw_dl = Path(args.deeplink_map)
     deeplink_map_path = raw_dl if raw_dl.is_absolute() else (project_root / raw_dl).resolve()
     if not deeplink_map_path.exists():
-        print(f"[WARNING] Deeplink map not found: {deeplink_map_path} -- deeplink columns will be skipped.")
+        print(f"[WARNING] Cohort mapping not found: {deeplink_map_path} -- deeplink columns will be skipped.")
         deeplink_map_path = None
 
     # Resolve output directories to process.
@@ -431,7 +447,7 @@ def main() -> None:
             continue
         print(f"Preparing campaign content for: {output_dir.name}")
         if deeplink_map_path:
-            print(f"Deeplink map : {deeplink_map_path}")
+            print(f"Cohort mapping : {deeplink_map_path}")
         print()
         try:
             prepare_content(output_dir, deeplink_map_path)

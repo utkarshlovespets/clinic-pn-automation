@@ -6,7 +6,7 @@ date, day, utm name, campaign id, title, message
 Usage:
     python generate_summaries_archive.py
     python generate_summaries_archive.py --clinic-csv data/clinic_mastersheet.csv \
-        --deeplink-map data/deeplink_map.csv --output summaries_archive.csv
+        --deeplink-map data/cohort_mapping.csv --output summaries_archive.csv
 """
 
 from __future__ import annotations
@@ -18,6 +18,9 @@ from urllib.parse import parse_qs, urlparse
 import pandas as pd
 
 from utils import normalize_cohort
+
+COHORT_CODE_COL = "cohort_code"
+LEGACY_COHORT_CODE_COL = "Cohort Name"
 
 
 def build_deeplink(template: str, date_token: str, priority_token: str) -> str:
@@ -42,27 +45,40 @@ def extract_utm_name(primary_url: str, fallback_url: str) -> str:
 
 
 def load_deeplink_lookup(path: Path) -> dict[str, tuple[str, str, str]]:
-    """Return normalized cohort -> (campaign_id, android_base_url, ios_base_url)."""
+    """Return campaign/cohort lookup -> (campaign_id, android_base_url, ios_base_url)."""
     if not path.exists():
         return {}
 
     df = pd.read_csv(path, dtype=str, keep_default_na=False)
-    required = {"Cohort Name", "campaign_id"}
+    cohort_code_col = (
+        COHORT_CODE_COL if COHORT_CODE_COL in df.columns else LEGACY_COHORT_CODE_COL
+    )
+    required = {cohort_code_col, "campaign_id"}
     missing = required - set(df.columns)
     if missing:
-        raise ValueError(f"deeplink_map is missing columns: {sorted(missing)}")
+        raise ValueError(f"cohort_mapping is missing columns: {sorted(missing)}")
 
     lookup: dict[str, tuple[str, str, str]] = {}
     for _, row in df.iterrows():
-        key = normalize_cohort(str(row.get("Cohort Name", "")).strip())
-        if not key:
-            continue
-        lookup[key] = (
-            str(row.get("campaign_id", "")).strip(),
+        campaign_id = str(row.get("campaign_id", "")).strip()
+        cohort_key = normalize_cohort(str(row.get(cohort_code_col, "")).strip())
+        value = (
+            campaign_id,
             str(row.get("android_base_url", "")).strip(),
             str(row.get("ios_base_url", "")).strip(),
         )
+        if campaign_id:
+            lookup[f"cid:{campaign_id}"] = value
+        if cohort_key:
+            lookup[f"cohort:{cohort_key}"] = value
     return lookup
+
+
+def get_lookup_key(row: pd.Series) -> str:
+    campaign_id = str(row.get("_mastersheet_campaign_id", "")).strip()
+    if campaign_id:
+        return f"cid:{campaign_id}"
+    return f"cohort:{row['_cohort_key']}"
 
 
 def generate_archive(clinic_csv: Path, deeplink_map: Path, output_csv: Path) -> int:
@@ -85,6 +101,9 @@ def generate_archive(clinic_csv: Path, deeplink_map: Path, output_csv: Path) -> 
     df["_date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
     df["_slot"] = df["Slot"].fillna("").str.strip().str.lower()
     df["_cohort_name"] = df["Cohort Name"].fillna("").str.strip()
+    if "Campaign ID" not in df.columns:
+        df["Campaign ID"] = ""
+    df["_mastersheet_campaign_id"] = df.get("Campaign ID", "").fillna("").str.strip()
     df["_title"] = df["Title"].fillna("").str.strip()
     df["_message"] = df["Content"].fillna("").str.strip()
 
@@ -118,7 +137,7 @@ def generate_archive(clinic_csv: Path, deeplink_map: Path, output_csv: Path) -> 
 
     def map_campaign_and_utm(row: pd.Series) -> tuple[str, str]:
         campaign_id, android_tpl, ios_tpl = deeplink_lookup.get(
-            row["_cohort_key"], ("", "", "")
+            get_lookup_key(row), ("", "", "")
         )
         android_url = build_deeplink(
             android_tpl, row["_date_token"], row["_priority_token"]
@@ -162,8 +181,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--deeplink-map",
-        default="data/deeplink_map.csv",
-        help="Path to deeplink_map.csv (default: data/deeplink_map.csv).",
+        default="data/cohort_mapping.csv",
+        help="Path to cohort_mapping.csv (default: data/cohort_mapping.csv).",
     )
     parser.add_argument(
         "--output",

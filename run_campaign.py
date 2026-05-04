@@ -58,7 +58,12 @@ def print_header(live: bool) -> None:
     print(FULL_DISCLAIMER.format(mode=mode, fetch_stage=fetch_stage, fetch_cohorts_stage=fetch_cohorts_stage))
 
 
-def run_fetch(script_dir: Path) -> None:
+def run_fetch(
+    script_dir: Path,
+    clinic_csv: str,
+    cohort_map: str,
+    exclusion_map: str,
+) -> None:
     """Import and call script 01's main() to refresh clinic_mastersheet.csv."""
     sys.path.insert(0, str(script_dir))
     import importlib
@@ -71,7 +76,12 @@ def run_fetch(script_dir: Path) -> None:
         # Script 01 uses sys.argv; temporarily patch it.
         import sys as _sys
         original_argv = _sys.argv[:]
-        _sys.argv = ["01_fetch_clinic_mastersheet.py"]
+        _sys.argv = [
+            "01_fetch_clinic_mastersheet.py",
+            "--output", clinic_csv,
+            "--cohort-mapping-output", cohort_map,
+            "--exclusion-mapping-output", exclusion_map,
+        ]
         try:
             mod.main()
         finally:
@@ -80,7 +90,13 @@ def run_fetch(script_dir: Path) -> None:
         # Fallback: run as subprocess if import fails (e.g. name starts with digit).
         import subprocess
         result = subprocess.run(
-            [sys.executable, str(script_dir / "01_fetch_clinic_mastersheet.py")],
+            [
+                sys.executable,
+                str(script_dir / "01_fetch_clinic_mastersheet.py"),
+                "--output", clinic_csv,
+                "--cohort-mapping-output", cohort_map,
+                "--exclusion-mapping-output", exclusion_map,
+            ],
             check=False,
         )
         if result.returncode != 0:
@@ -110,6 +126,7 @@ def run_generate(
     script_dir: Path,
     clinic_csv: str,
     cohort_map: str,
+    exclusion_map: str,
     output_dir: str,
     date_str: Optional[str] = None,
     slot: str = "both",
@@ -127,6 +144,7 @@ def run_generate(
         "02_generate_priority_exclusions.py",
         "--clinic-csv", clinic_csv,
         "--cohort-map", cohort_map,
+        "--exclusion-map", exclusion_map,
         "--output-dir", output_dir,
         "--slot", slot,
     ]
@@ -428,11 +446,19 @@ def main() -> None:
     )
     parser.add_argument(
         "--cohort-map",
-        default="data/deeplink_map.csv",
+        default="data/cohort_mapping.csv",
         help=(
-            "Path to deeplink_map.csv with a 'cohort_dataset' column mapping each "
-            "cohort to its CSV file in data/cohorts/ "
-            "(default: data/deeplink_map.csv)."
+            "Path to Cohort_Mapping export with cohort_code, campaign_id, "
+            "cohort_dataset, and deeplink templates "
+            "(default: data/cohort_mapping.csv)."
+        ),
+    )
+    parser.add_argument(
+        "--exclusion-map",
+        default="data/exclusion_mapping.csv",
+        help=(
+            "Path to Exclusion_Mapping export with 'Exclusion Name' and 'Dataset' "
+            "columns (default: data/exclusion_mapping.csv)."
         ),
     )
     parser.add_argument(
@@ -448,13 +474,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--deeplink-map",
-        default="data/deeplink_map.csv",
+        default=None,
         help=(
-            "Path to deeplink_map.csv "
-            "(columns: Cohort Name, campaign_id, android_base_url, ios_base_url). "
+            "Optional override for the Cohort_Mapping export used by stage 3 "
+            "(columns: cohort_code, cohort_name, campaign_id, android_base_url, ios_base_url). "
             "Stage 3 appends campaign_id, android_deeplink, and ios_deeplink columns "
             "when this file exists. "
-            "(default: data/deeplink_map.csv)"
+            "Defaults to --cohort-map."
         ),
     )
     parser.add_argument(
@@ -503,7 +529,12 @@ def main() -> None:
         print_header(live=args.live)
 
         # -- Stage 1: Fetch mastersheet ----------------------------------------
-        run_fetch(campaign_dir)
+        run_fetch(
+            campaign_dir,
+            clinic_csv=args.clinic_csv,
+            cohort_map=args.cohort_map,
+            exclusion_map=args.exclusion_map,
+        )
 
         # Auto-slot guard: only proceed if today's inferred IST slot exists in mastersheet.
         raw_clinic_path = Path(args.clinic_csv)
@@ -538,6 +569,7 @@ def main() -> None:
             campaign_dir,
             clinic_csv=args.clinic_csv,
             cohort_map=args.cohort_map,
+            exclusion_map=args.exclusion_map,
             output_dir=str(output_base),
             date_str=date_str,
             slot=args.slot,
@@ -564,10 +596,10 @@ def main() -> None:
                 continue
 
             # -- Stage 3: Resolve title / body per user + deeplinks ----------
-            raw_dl = Path(args.deeplink_map)
+            raw_dl = Path(args.deeplink_map or args.cohort_map)
             deeplink_map_path = raw_dl if raw_dl.is_absolute() else (project_root / raw_dl).resolve()
             if not deeplink_map_path.exists():
-                print(f"  [WARNING] Deeplink map not found: {deeplink_map_path} -- deeplink columns will be skipped.")
+                print(f"  [WARNING] Cohort mapping not found: {deeplink_map_path} -- deeplink columns will be skipped.")
                 deeplink_map_path = None
             run_prepare_content(campaign_dir, slot_dir_full, deeplink_map_path)
 

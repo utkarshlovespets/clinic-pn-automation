@@ -15,24 +15,35 @@ Fetched from Google Sheets by Stage 1. Defines the campaign schedule.
 | `Date` | string | `DD/MM/YYYY` |
 | `Day` | string | Day abbreviation (Mon, Tue, ...) |
 | `Slot` | string | `morning` or `evening` |
-| `Cohort Name` | string | Must match a cohort in `deeplink_map.csv` |
+| `Cohort Name` | string | Friendly label for your reference |
+| `Campaign ID` | string | Must match `campaign_id` in `cohort_mapping.csv` |
 | `Exclusion` | string | (Optional) Comma-separated cohort names to exclude |
 | `Title` | string | Push notification title template |
 | `Content` | string | Push notification body template |
 
 ---
 
-### `data/deeplink_map.csv`
+### `data/cohort_mapping.csv`
 
-Maps cohort names to their data files, CleverTap campaign IDs, and URL templates.
+Maps cohort codes to their data files, CleverTap campaign IDs, and URL templates.
 
 | Column | Type | Description |
 |---|---|---|
-| `Cohort Name` | string | Cohort identifier (matches mastersheet) |
+| `cohort_code` | string | Canonical cohort code used by the automation |
+| `cohort_name` | string | Optional friendly name for personal reference |
 | `campaign_id` | string | CleverTap External Trigger campaign ID for this cohort |
 | `cohort_dataset` | string | Cohort CSV filename in `data/cohorts/` |
 | `android_base_url` | string | Android deeplink URL (may contain `{date}`, `{priority}` tokens) |
 | `ios_base_url` | string | iOS deeplink URL (may contain `{date}`, `{priority}` tokens) |
+
+### `data/exclusion_mapping.csv`
+
+Fetched from the `Exclusion_Mapping` Google Sheet tab.
+
+| Column | Type | Description |
+|---|---|---|
+| `Exclusion Name` | string | Name used in the mastersheet `Exclusion` column |
+| `Dataset` | string | Exclusion CSV filename in `data/cohorts/` |
 
 **Priority Token Format:**
 - Morning campaigns: `{priority}` replaced with `1M`, `2M`, `3M`, ...
@@ -126,7 +137,7 @@ Same files as Stage 2 output, with additional columns added in-place.
 | `Pet Name` | string | Pet's name |
 | `title` | string | Resolved notification title (personalized) |
 | `body` | string | Resolved notification body (personalized) |
-| `campaign_id` | string | Campaign ID copied from `deeplink_map.csv` for this cohort |
+| `campaign_id` | string | Campaign ID copied from `cohort_mapping.csv` for this cohort |
 | `android_deeplink` | string | Final Android URL (date and slot-tagged priority substituted) |
 | `ios_deeplink` | string | Final iOS URL (date and slot-tagged priority substituted) |
 
