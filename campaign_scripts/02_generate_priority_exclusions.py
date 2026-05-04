@@ -33,8 +33,8 @@ from utils import normalize_cohort, sanitize_filename
 ENABLE_EXCLUSION_COL: bool = True
 COHORT_CODE_COL = "cohort_code"
 LEGACY_COHORT_CODE_COL = "Cohort Name"
-EXCLUSION_NAME_COL = "Exclusion Name"
-EXCLUSION_DATASET_COL = "Dataset"
+EXCLUSION_NAME_COL = "exclusion_name"
+EXCLUSION_DATASET_COL = "dataset"
 
 
 # -- Exclusion column helper --------------------------------------------------
