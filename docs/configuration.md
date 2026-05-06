@@ -43,7 +43,7 @@ The spreadsheet must contain these tabs exactly:
 | Tab | Purpose | Local output |
 |---|---|---|
 | `Clinic_PN_Automation` | Campaign schedule and copy | `data/clinic_mastersheet.csv` |
-| `Cohort_Mapping` | Campaign ID to cohort dataset and deeplink templates | `data/cohort_mapping.csv` |
+| `Cohort_Mapping` | Campaign ID to cohort dataset, default exclusions, and deeplink templates | `data/cohort_mapping.csv` |
 | `Exclusion_Mapping` | Exclusion name to exclusion dataset | `data/exclusion_mapping.csv` |
 
 Stage 1 reads `A:Z` from each tab unless an explicit `--range` is used for the mastersheet.
@@ -73,12 +73,13 @@ Stage 2 can generate files for blank title/content rows, but `run_campaign.py` v
 | `cohort_dataset` | Yes | File under `data/cohorts/` |
 | `android_base_url` | Yes for deeplinks | May contain `{date}` and `{priority}` |
 | `ios_base_url` | Yes for deeplinks | May contain `{date}` and `{priority}` |
+| `exclusion` | No | Default comma-separated exclusions for this cohort. Values can match `Exclusion_Mapping.Exclusion Name`, `cohort_code`, or `cohort_name` |
 
 Example:
 
 ```csv
-cohort_name,cohort_code,campaign_id,cohort_dataset,android_base_url,ios_base_url
-Vaccination Due,Clinic_Vaccination_Due,1776770659,vaccination_due.csv,https://supertails.com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B,supertails-com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B
+cohort_name,cohort_code,campaign_id,cohort_dataset,android_base_url,ios_base_url,exclusion
+Vaccination Due,Clinic_Vaccination_Due,1776770659,vaccination_due.csv,https://supertails.com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B,supertails-com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B,Appointment Completed
 ```
 
 ## `Exclusion_Mapping` Schema

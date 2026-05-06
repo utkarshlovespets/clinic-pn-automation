@@ -32,6 +32,8 @@ from utils import normalize_cohort, sanitize_filename
 # campaign row, regardless of priority order.
 ENABLE_EXCLUSION_COL: bool = True
 COHORT_CODE_COL = "cohort_code"
+COHORT_NAME_COL = "cohort_name"
+COHORT_DEFAULT_EXCLUSION_COL = "exclusion"
 EXCLUSION_NAME_COL = "exclusion_name"
 EXCLUSION_DATASET_COL = "dataset"
 
@@ -50,10 +52,29 @@ def parse_exclusion_col(exclusion_str: str) -> List[str]:
     Returns:
         List of normalized cohort keys (empty list if blank / NaN).
     """
+    return [normalize_cohort(name) for name in parse_exclusion_names(exclusion_str)]
+
+
+def parse_exclusion_names(exclusion_str: str) -> List[str]:
+    """Parse a comma-separated exclusion cell into display names."""
     if not exclusion_str or pd.isna(exclusion_str):
         return []
     parts = str(exclusion_str).split(",")
-    return [normalize_cohort(p) for p in parts if p.strip()]
+    return [p.strip() for p in parts if p.strip()]
+
+
+def merge_exclusion_names(*groups: List[str]) -> List[str]:
+    """Merge exclusion name lists, preserving order and removing duplicates."""
+    merged: List[str] = []
+    seen = set()
+    for group in groups:
+        for name in group:
+            key = normalize_cohort(name)
+            if not key or key in seen:
+                continue
+            merged.append(name)
+            seen.add(key)
+    return merged
 
 
 def build_deeplink(url_template: str, date_formatted: str, priority_token: str) -> str:
@@ -230,6 +251,8 @@ def load_campaign_cohort_index_from_map(
     cohorts_dir: Path,
 ) -> Tuple[
     Dict[str, List[Tuple[str, str, str]]],
+    Dict[str, List[Tuple[str, str, str]]],
+    Dict[str, List[str]],
     int,
     Dict[str, str],
     Dict[str, str],
@@ -248,30 +271,47 @@ def load_campaign_cohort_index_from_map(
         )
 
     campaign_index: Dict[str, List[Tuple[str, str, str]]] = {}
+    cohort_exclusion_index: Dict[str, List[Tuple[str, str, str]]] = {}
+    campaign_default_exclusion_map: Dict[str, List[str]] = {}
     deeplink_url_map: Dict[str, str] = {}
     campaign_cohort_name_map: Dict[str, str] = {}
     loaded = 0
 
     for _, row in map_df.iterrows():
+        cohort_name = str(row.get(COHORT_NAME_COL, "")).strip()
         cohort_code = str(row[COHORT_CODE_COL]).strip()
         campaign_id = str(row["campaign_id"]).strip()
         dataset_file = str(row["cohort_dataset"]).strip()
+        default_exclusion_names = parse_exclusion_names(
+            str(row.get(COHORT_DEFAULT_EXCLUSION_COL, "")).strip()
+        )
         if not cohort_code or not dataset_file:
             continue
 
         if campaign_id:
             deeplink_url_map[campaign_id] = str(row.get("android_base_url", "")).strip()
             campaign_cohort_name_map[campaign_id] = cohort_code
+            campaign_default_exclusion_map[campaign_id] = default_exclusion_names
 
         entries = load_user_entries(cohorts_dir / dataset_file, cohort_code)
         if not entries:
             continue
 
+        cohort_exclusion_index[normalize_cohort(cohort_code)] = entries
+        if cohort_name:
+            cohort_exclusion_index[normalize_cohort(cohort_name)] = entries
         if campaign_id:
             campaign_index[campaign_id] = entries
         loaded += 1
 
-    return campaign_index, loaded, deeplink_url_map, campaign_cohort_name_map
+    return (
+        campaign_index,
+        cohort_exclusion_index,
+        campaign_default_exclusion_map,
+        loaded,
+        deeplink_url_map,
+        campaign_cohort_name_map,
+    )
 
 
 def load_exclusion_index_from_map(
@@ -349,6 +389,7 @@ def build_priority_files(
     clinic_df: pd.DataFrame,
     cohort_index: Dict[str, List[Tuple[str, str, str]]],
     exclusion_index: Dict[str, List[Tuple[str, str, str]]],
+    campaign_default_exclusion_map: Dict[str, List[str]],
     deeplink_url_map: Dict[str, str],
     campaign_cohort_name_map: Dict[str, str],
     run_date: pd.Timestamp,
@@ -363,7 +404,8 @@ def build_priority_files(
 
     If ENABLE_EXCLUSION_COL is True, the Exclusion column is also applied:
     members of named cohorts are excluded from that campaign row regardless
-    of priority.
+    of priority. Default exclusions from cohort_mapping.csv are applied before
+    row-level mastersheet exclusions.
 
     Returns True if at least one row was found and files were written.
     """
@@ -395,38 +437,64 @@ def build_priority_files(
         input_candidates = len({t[0] for t in candidate_tuples})  # unique emails
 
         # -- Exclusion column -----------------------------------------------
+        default_exclusion_names: List[str] = []
+        row_exclusion_names: List[str] = []
         exclusion_cohort_names: List[str] = []
         if ENABLE_EXCLUSION_COL:
-            raw_exclusion = str(row.get("Exclusion", "")).strip()
-            exclusion_keys = parse_exclusion_col(raw_exclusion)
-            exclusion_emails: set = set()
-            for ex_key in exclusion_keys:
+            default_exclusion_names = merge_exclusion_names(
+                campaign_default_exclusion_map.get(campaign_id, [])
+            )
+            row_exclusion_names = merge_exclusion_names(
+                parse_exclusion_names(str(row.get("Exclusion", "")).strip())
+            )
+            default_exclusion_keys = {
+                normalize_cohort(name) for name in default_exclusion_names
+            }
+            row_extra_exclusion_names = [
+                name
+                for name in row_exclusion_names
+                if normalize_cohort(name) not in default_exclusion_keys
+            ]
+            exclusion_cohort_names = row_extra_exclusion_names
+            default_exclusion_emails: set = set()
+            for ex_key in [normalize_cohort(name) for name in default_exclusion_names]:
                 for t in exclusion_index.get(ex_key, []):
-                    exclusion_emails.add(t[0])
-            # Preserve the original names from the Exclusion cell for reporting.
-            if raw_exclusion:
-                exclusion_cohort_names = [
-                    p.strip() for p in raw_exclusion.split(",") if p.strip()
-                ]
+                    default_exclusion_emails.add(t[0])
+
+            row_exclusion_emails: set = set()
+            for ex_key in [normalize_cohort(name) for name in row_extra_exclusion_names]:
+                for t in exclusion_index.get(ex_key, []):
+                    row_exclusion_emails.add(t[0])
+
+            exclusion_emails = default_exclusion_emails | row_exclusion_emails
         else:
+            default_exclusion_emails = set()
+            row_exclusion_emails = set()
             exclusion_emails = set()
         # -------------------------------------------------------------------
 
         candidate_emails = {t[0] for t in candidate_tuples}
 
-        # Apply priority exclusion (and optional column exclusion).
+        # Apply priority exclusion and named exclusions.
         final_tuples = [
             t
             for t in candidate_tuples
             if t[0] not in targeted_emails and t[0] not in exclusion_emails
         ]
-        # Count exclusions without double-counting users excluded by both filters.
-        # Users in both sets are attributed to priority exclusion.
-        col_only_excl = (candidate_emails & exclusion_emails) - targeted_emails
+        # Count exclusions without double-counting users excluded by multiple
+        # filters. Attribution order: priority, default exclusion, mastersheet
+        # Exclusion column.
         priority_excl = candidate_emails & targeted_emails
+        default_excl = (candidate_emails & default_exclusion_emails) - targeted_emails
+        row_excl = (
+            (candidate_emails & row_exclusion_emails)
+            - targeted_emails
+            - default_exclusion_emails
+        )
 
-        excluded_by_exclusion_col = len(col_only_excl)
         excluded_by_priority = len(priority_excl)
+        excluded_by_default = len(default_excl)
+        excluded_by_exclusion_col = len(row_excl)
 
         # Update targeted set (by email, not by tuple -- one email = one slot).
         targeted_emails.update(t[0] for t in final_tuples)
@@ -449,7 +517,9 @@ def build_priority_files(
                 "content_template": str(row.get("Content", "")).strip(),
                 "input_candidates": input_candidates,
                 "excluded_by_priority": excluded_by_priority,
+                "excluded_by_default": excluded_by_default,
                 "excluded_by_exclusion_col": excluded_by_exclusion_col,
+                "default_exclusion_cohorts": "; ".join(default_exclusion_names),
                 "exclusion_cohorts": "; ".join(exclusion_cohort_names),
                 "final_count": len(final_tuples),
                 "output_file": out_name,
@@ -465,6 +535,7 @@ def build_priority_files(
                 "content_template": str(row.get("Content", "")).strip(),
                 "cohort_size": input_candidates,
                 "excluded_by_priority": excluded_by_priority,
+                "excluded_by_default": excluded_by_default,
                 "excluded_by_exclusion_col": excluded_by_exclusion_col,
                 "final_count": len(final_tuples),
             }
@@ -489,6 +560,9 @@ def build_priority_files(
                 "utm_campaign": extract_utm_campaign(resolved_url),
                 "title_template": str(row.get("title_template", "")).strip(),
                 "content_template": str(row.get("content_template", "")).strip(),
+                "excluded_by_priority": int(row["excluded_by_priority"]),
+                "excluded_by_default": int(row["excluded_by_default"]),
+                "excluded_by_exclusion_col": int(row["excluded_by_exclusion_col"]),
                 "final_count": int(row["final_count"]),
             }
         )
@@ -506,6 +580,9 @@ def build_priority_files(
             "utm_campaign",
             "title_template",
             "content_template",
+            "excluded_by_priority",
+            "excluded_by_default",
+            "excluded_by_exclusion_col",
             "final_count",
         ],
     ).to_csv(log_summary_path, index=False)
@@ -513,6 +590,7 @@ def build_priority_files(
     pd.DataFrame(campaign_meta_rows).to_csv(
         output_dir / "campaign_meta.csv", index=False
     )
+    pd.DataFrame(summary_rows).to_csv(output_dir / "summary.csv", index=False)
 
     date_str = run_date.strftime("%d/%m/%Y")
     total_final = sum(r["final_count"] for r in summary_rows)
@@ -546,7 +624,7 @@ def main() -> None:
         default="data/cohort_mapping.csv",
         help=(
             "Path to Cohort_Mapping export with cohort_code, campaign_id, "
-            "cohort_dataset, and deeplink templates "
+            "cohort_dataset, default exclusions, and deeplink templates "
             "(default: data/cohort_mapping.csv)"
         ),
     )
@@ -607,6 +685,8 @@ def main() -> None:
     clinic_df = load_clinic_mastersheet(clinic_path)
     (
         cohort_index,
+        cohort_exclusion_index,
+        campaign_default_exclusion_map,
         loaded_count,
         deeplink_url_map,
         campaign_cohort_name_map,
@@ -614,11 +694,18 @@ def main() -> None:
     exclusion_index, exclusion_loaded_count = load_exclusion_index_from_map(
         exclusion_map_path, cohorts_dir
     )
+    combined_exclusion_index = dict(cohort_exclusion_index)
+    combined_exclusion_index.update(exclusion_index)
+    exclusion_index = combined_exclusion_index
 
     total_users = sum(len(v) for v in cohort_index.values())
+    default_exclusion_count = sum(
+        1 for names in campaign_default_exclusion_map.values() if names
+    )
     print(f"  Clinic mastersheet : {len(clinic_df)} usable rows")
     print(f"  Cohort files loaded: {loaded_count} file(s), {total_users} users across {len(cohort_index)} campaign(s)")
     print(f"  Exclusion files loaded: {exclusion_loaded_count} file(s)")
+    print(f"  Default exclusions : {default_exclusion_count} cohort mapping row(s)")
     print()
 
     today = pd.Timestamp.now().normalize()
@@ -650,6 +737,7 @@ def main() -> None:
                 clinic_df,
                 cohort_index,
                 exclusion_index,
+                campaign_default_exclusion_map,
                 deeplink_url_map,
                 campaign_cohort_name_map,
                 run_date,

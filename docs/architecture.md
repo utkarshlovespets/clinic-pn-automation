@@ -23,6 +23,7 @@ Stage 2: campaign_scripts/02_generate_priority_exclusions.py
           |
           |-- outputs/{DDMMYYYY}_{slot}/NN_{cohort_code}.csv
           |-- outputs/{DDMMYYYY}_{slot}/campaign_meta.csv
+          |-- outputs/{DDMMYYYY}_{slot}/summary.csv
           `-- outputs/log/summary/{DDMMYYYY}_{slot}.csv
 
 Stage 3: campaign_scripts/03_prepare_campaign_content.py
@@ -66,7 +67,7 @@ Campaign audiences are matched by `Campaign ID` in `data/clinic_mastersheet.csv`
 
 `cohort_code` is the automation-facing cohort identifier used for output filenames and normalized lookups. It is required in the mapping file.
 
-Explicit exclusions are separate. The mastersheet `Exclusion` cell names values from `data/exclusion_mapping.csv` column `Exclusion Name`; each maps to a `Dataset` file under `data/cohorts/`.
+Explicit exclusions are separate. Stage 2 combines default values from `data/cohort_mapping.csv.exclusion` with the mastersheet `Exclusion` cell. Each value can match an `exclusion_name` in `data/exclusion_mapping.csv` or a cohort name/code in `data/cohort_mapping.csv`.
 
 ## Safety
 

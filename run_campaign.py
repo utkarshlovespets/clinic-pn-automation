@@ -449,7 +449,7 @@ def main() -> None:
         default="data/cohort_mapping.csv",
         help=(
             "Path to Cohort_Mapping export with cohort_code, campaign_id, "
-            "cohort_dataset, and deeplink templates "
+            "cohort_dataset, default exclusions, and deeplink templates "
             "(default: data/cohort_mapping.csv)."
         ),
     )

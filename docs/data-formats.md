@@ -29,6 +29,7 @@ Fetched from `Cohort_Mapping`.
 | `cohort_dataset` | string | Cohort CSV filename under `data/cohorts/` |
 | `android_base_url` | string | Android URL template |
 | `ios_base_url` | string | iOS URL template |
+| `exclusion` | string | Optional default comma-separated exclusions for this cohort. Values can match `exclusion_mapping.csv.exclusion_name`, `cohort_code`, or `cohort_name` |
 
 ### `data/exclusion_mapping.csv`
 
@@ -55,7 +56,7 @@ Located in `outputs/{DDMMYYYY}_{slot}/`.
 
 ### `NN_{cohort_code}.csv`
 
-One file per campaign row after priority and explicit exclusions.
+One file per campaign row after priority, default, and explicit exclusions.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -75,8 +76,20 @@ One file per campaign row after priority and explicit exclusions.
 | `content_template` | string | Raw body template |
 | `cohort_size` | integer | Unique candidate emails before filtering |
 | `excluded_by_priority` | integer | Removed because already targeted by a higher-priority row |
+| `excluded_by_default` | integer | Removed because of `cohort_mapping.csv.exclusion` |
 | `excluded_by_exclusion_col` | integer | Removed because of the mastersheet `Exclusion` column |
 | `final_count` | integer | Users written to the priority CSV |
+
+### `summary.csv`
+
+Per-output-file Stage 2 summary. Includes the `campaign_meta.csv` count fields plus:
+
+| Column | Type | Notes |
+|---|---|---|
+| `input_candidates` | integer | Unique candidate emails before filtering |
+| `default_exclusion_cohorts` | string | Default exclusions from `cohort_mapping.csv.exclusion` |
+| `exclusion_cohorts` | string | Row-level exclusions from the mastersheet `Exclusion` column |
+| `output_file` | string | Generated cohort CSV filename |
 
 ### `outputs/log/summary/{DDMMYYYY}_{slot}.csv`
 
@@ -91,6 +104,9 @@ Stage 2 writes a compact run summary here.
 | `utm_campaign` | string |
 | `title_template` | string |
 | `content_template` | string |
+| `excluded_by_priority` | integer |
+| `excluded_by_default` | integer |
+| `excluded_by_exclusion_col` | integer |
 | `final_count` | integer |
 
 ## Stage 3 Outputs

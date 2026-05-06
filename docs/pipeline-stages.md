@@ -62,12 +62,15 @@ Behavior:
 - Maps each row by `Campaign ID` to `cohort_mapping.csv.campaign_id`.
 - Loads the mapped `cohort_dataset` audience.
 - Applies priority exclusion so a user targeted by a higher-priority row is removed from lower-priority rows.
-- Applies explicit exclusions from the mastersheet `Exclusion` column using `exclusion_mapping.csv`.
+- Applies default exclusions from `cohort_mapping.csv.exclusion`.
+- Applies explicit exclusions from the mastersheet `Exclusion` column.
+- Exclusion names can resolve through `exclusion_mapping.csv`, `cohort_mapping.csv.cohort_code`, or `cohort_mapping.csv.cohort_name`.
 
 Outputs:
 
 - `outputs/{DDMMYYYY}_{slot}/NN_{cohort_code}.csv`
 - `outputs/{DDMMYYYY}_{slot}/campaign_meta.csv`
+- `outputs/{DDMMYYYY}_{slot}/summary.csv`
 - `outputs/log/summary/{DDMMYYYY}_{slot}.csv`
 
 Important: `cohort_code` is required in `cohort_mapping.csv`.
