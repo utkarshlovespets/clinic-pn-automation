@@ -18,9 +18,11 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 WORKSHEET_NAME = "Clinic_PN_Automation"
 COHORT_MAPPING_WORKSHEET_NAME = "Cohort_Mapping"
 EXCLUSION_MAPPING_WORKSHEET_NAME = "Exclusion_Mapping"
+IMAGE_MAPPING_WORKSHEET_NAME = "Image_Mapping"
 DEFAULT_OUTPUT = "data/clinic_mastersheet.csv"
 DEFAULT_COHORT_MAPPING_OUTPUT = "data/cohort_mapping.csv"
 DEFAULT_EXCLUSION_MAPPING_OUTPUT = "data/exclusion_mapping.csv"
+DEFAULT_IMAGE_MAPPING_OUTPUT = "data/image_mapping.csv"
 DEFAULT_COLUMNS_RANGE = "A:Z"
 DISCOUNT_PLACEHOLDER_RE = re.compile(r"x\s*x\s*%", re.IGNORECASE)
 
@@ -201,6 +203,11 @@ def main() -> None:
 		help="Path to save Exclusion_Mapping CSV.",
 	)
 	parser.add_argument(
+		"--image-mapping-output",
+		default=DEFAULT_IMAGE_MAPPING_OUTPUT,
+		help="Path to save Image_Mapping CSV.",
+	)
+	parser.add_argument(
 		"--skip-mapping-fetch",
 		action="store_true",
 		help="Only fetch the clinic mastersheet; skip Cohort_Mapping and Exclusion_Mapping.",
@@ -219,6 +226,9 @@ def main() -> None:
 	)
 	exclusion_mapping_output_path = resolve_path(
 		args.exclusion_mapping_output, DEFAULT_EXCLUSION_MAPPING_OUTPUT, project_root
+	)
+	image_mapping_output_path = resolve_path(
+		args.image_mapping_output, DEFAULT_IMAGE_MAPPING_OUTPUT, project_root
 	)
 
 	if not credentials_path.exists():
@@ -274,6 +284,18 @@ def main() -> None:
 			f"{build_range(EXCLUSION_MAPPING_WORKSHEET_NAME)}."
 		)
 		print(f"Saved CSV to: {exclusion_mapping_output_path}")
+
+		image_rows = fetch_values_to_csv(
+			service,
+			args.spreadsheet_id,
+			IMAGE_MAPPING_WORKSHEET_NAME,
+			image_mapping_output_path,
+		)
+		print(
+			f"Fetched {image_rows} data rows from "
+			f"{build_range(IMAGE_MAPPING_WORKSHEET_NAME)}."
+		)
+		print(f"Saved CSV to: {image_mapping_output_path}")
 
 
 if __name__ == "__main__":

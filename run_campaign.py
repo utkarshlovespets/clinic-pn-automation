@@ -63,6 +63,7 @@ def run_fetch(
     clinic_csv: str,
     cohort_map: str,
     exclusion_map: str,
+    image_map: str,
 ) -> None:
     """Import and call script 01's main() to refresh clinic_mastersheet.csv."""
     sys.path.insert(0, str(script_dir))
@@ -81,6 +82,7 @@ def run_fetch(
             "--output", clinic_csv,
             "--cohort-mapping-output", cohort_map,
             "--exclusion-mapping-output", exclusion_map,
+            "--image-mapping-output", image_map,
         ]
         try:
             mod.main()
@@ -96,6 +98,7 @@ def run_fetch(
                 "--output", clinic_csv,
                 "--cohort-mapping-output", cohort_map,
                 "--exclusion-mapping-output", exclusion_map,
+                "--image-mapping-output", image_map,
             ],
             check=False,
         )
@@ -163,6 +166,7 @@ def run_prepare_content(
     script_dir: Path,
     slot_output_dir: Path,
     deeplink_map_path: Optional[Path] = None,
+    image_map_path: Optional[Path] = None,
 ) -> None:
     """Load script 03 by file path and call prepare_content() for one slot directory.
 
@@ -182,7 +186,7 @@ def run_prepare_content(
         raise ImportError("Could not load module spec or loader")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    mod.prepare_content(slot_output_dir, deeplink_map_path)
+    mod.prepare_content(slot_output_dir, deeplink_map_path, image_map_path)
 
 
 def run_trigger(
@@ -462,6 +466,14 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--image-map",
+        default="data/image_mapping.csv",
+        help=(
+            "Path to Image_Mapping export with image_name and image_url "
+            "columns (default: data/image_mapping.csv)."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         default="outputs",
         help="Base output directory (default: outputs).",
@@ -534,6 +546,7 @@ def main() -> None:
             clinic_csv=args.clinic_csv,
             cohort_map=args.cohort_map,
             exclusion_map=args.exclusion_map,
+            image_map=args.image_map,
         )
 
         # Auto-slot guard: only proceed if today's inferred IST slot exists in mastersheet.
@@ -601,7 +614,13 @@ def main() -> None:
             if not deeplink_map_path.exists():
                 print(f"  [WARNING] Cohort mapping not found: {deeplink_map_path} -- deeplink columns will be skipped.")
                 deeplink_map_path = None
-            run_prepare_content(campaign_dir, slot_dir_full, deeplink_map_path)
+
+            raw_image = Path(args.image_map)
+            image_map_path = raw_image if raw_image.is_absolute() else (project_root / raw_image).resolve()
+            if not image_map_path.exists():
+                image_map_path = None
+
+            run_prepare_content(campaign_dir, slot_dir_full, deeplink_map_path, image_map_path)
 
             # -- Stage 4: Trigger campaigns ------------------------------------
             print()

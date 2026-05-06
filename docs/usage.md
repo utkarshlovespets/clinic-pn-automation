@@ -50,10 +50,10 @@ python run_campaign.py --date 04052026 --slot morning --live --max-workers 50
 
 ## What `run_campaign.py` Does
 
-1. Fetches `Clinic_PN_Automation`, `Cohort_Mapping`, and `Exclusion_Mapping` from Google Sheets.
+1. Fetches `Clinic_PN_Automation`, `Cohort_Mapping`, `Exclusion_Mapping`, and `Image_Mapping` from Google Sheets.
 2. In live mode only, refreshes cohort CSVs through Stage 1b.
 3. Generates priority-filtered audience CSVs.
-4. Adds personalized title/body and deeplinks.
+4. Adds personalized title/body, deeplinks, image URLs, and effective campaign IDs.
 5. Dry-runs or live-triggers CleverTap campaigns.
 6. Sends a Slack status notification when Slack env vars are configured.
 
@@ -100,7 +100,7 @@ python generate_summaries_archive.py
 Stage 2:
 
 ```text
-outputs/04052026_morning/campaign_meta.csv
+outputs/04052026_morning/summary.csv
 outputs/log/summary/04052026_morning.csv
 ```
 

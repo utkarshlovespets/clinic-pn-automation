@@ -48,15 +48,17 @@ python run_campaign.py --date 04052026 --slot morning --live
 
 ## Current Data Sources
 
-Stage 1 reads three tabs from the Google Sheet identified by `SPREADSHEET_ID`:
+Stage 1 reads four tabs from the Google Sheet identified by `SPREADSHEET_ID`:
 
 | Sheet tab | Local CSV |
 |---|---|
 | `Clinic_PN_Automation` | `data/clinic_mastersheet.csv` |
 | `Cohort_Mapping` | `data/cohort_mapping.csv` |
 | `Exclusion_Mapping` | `data/exclusion_mapping.csv` |
+| `Image_Mapping` | `data/image_mapping.csv` |
 
 Campaign rows are mapped by `Campaign ID`, not by the mastersheet `Cohort Name`. `cohort_mapping.csv` must contain `cohort_code`.
+Rows with `Image` use `cohort_mapping.csv.img_campaign_id` and resolve `image_url` from `Image_Mapping`.
 
 ## Project Layout
 

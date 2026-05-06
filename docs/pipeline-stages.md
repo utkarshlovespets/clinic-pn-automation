@@ -4,13 +4,14 @@
 
 **Script:** `campaign_scripts/01_fetch_clinic_mastersheet.py`
 
-Fetches three tabs from the spreadsheet identified by `SPREADSHEET_ID`:
+Fetches four tabs from the spreadsheet identified by `SPREADSHEET_ID`:
 
 | Tab | Output |
 |---|---|
 | `Clinic_PN_Automation` | `data/clinic_mastersheet.csv` |
 | `Cohort_Mapping` | `data/cohort_mapping.csv` |
 | `Exclusion_Mapping` | `data/exclusion_mapping.csv` |
+| `Image_Mapping` | `data/image_mapping.csv` |
 
 Command:
 
@@ -22,7 +23,7 @@ Useful options:
 
 ```bash
 python campaign_scripts/01_fetch_clinic_mastersheet.py --skip-mapping-fetch
-python campaign_scripts/01_fetch_clinic_mastersheet.py --output data/clinic_mastersheet.csv --cohort-mapping-output data/cohort_mapping.csv --exclusion-mapping-output data/exclusion_mapping.csv
+python campaign_scripts/01_fetch_clinic_mastersheet.py --output data/clinic_mastersheet.csv --cohort-mapping-output data/cohort_mapping.csv --exclusion-mapping-output data/exclusion_mapping.csv --image-mapping-output data/image_mapping.csv
 ```
 
 The script also normalizes old `xx%` discount placeholders in mastersheet title/content cells to `10%`.
@@ -69,7 +70,6 @@ Behavior:
 Outputs:
 
 - `outputs/{DDMMYYYY}_{slot}/NN_{cohort_code}.csv`
-- `outputs/{DDMMYYYY}_{slot}/campaign_meta.csv`
 - `outputs/{DDMMYYYY}_{slot}/summary.csv`
 - `outputs/log/summary/{DDMMYYYY}_{slot}.csv`
 
@@ -91,8 +91,10 @@ Behavior:
 
 - Resolves `{your pet}`, `{your pet's}`, and `{pet parent}` placeholders per user.
 - Resolves campaign ID and URL templates from `cohort_mapping.csv`.
+- Resolves `image_name` through `image_mapping.csv`.
+- Uses `cohort_mapping.csv.img_campaign_id` instead of `campaign_id` when an image is present.
 - Builds `android_deeplink` and `ios_deeplink`.
-- Rewrites the priority CSVs in place with added columns.
+- Rewrites the priority CSVs and summary metadata in place with added campaign/image columns.
 
 Deeplink replacement:
 
@@ -124,6 +126,7 @@ Behavior:
 - Dry-run prints representative payloads and writes dry-run logs.
 - Live mode waits through a 10-second countdown, then sends API requests.
 - Users are grouped by identical title/body/deeplink/campaign combinations.
+- Payload variables include `image_url` when the enriched priority CSV has one.
 - Emails are sent in batches of up to 1000.
 - Standalone Stage 4 defaults to `--max-workers 200`.
 
@@ -152,6 +155,7 @@ Current defaults:
 | `--slot` | `both`, unless auto-slot mode is active |
 | `--cohort-map` | `data/cohort_mapping.csv` |
 | `--exclusion-map` | `data/exclusion_mapping.csv` |
+| `--image-map` | `data/image_mapping.csv` |
 | `--deeplink-map` | defaults to `--cohort-map` |
 | `--output-dir` | `outputs` |
 | `--max-workers` | `10` |

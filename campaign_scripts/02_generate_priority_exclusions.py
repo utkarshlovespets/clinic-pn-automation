@@ -353,7 +353,8 @@ def load_exclusion_index_from_map(
 def load_clinic_mastersheet(path: Path) -> pd.DataFrame:
     """Load and validate clinic_mastersheet.csv.
 
-    Expected columns: Date, Day, Slot, Cohort Name, Campaign ID, Exclusion, Title, Content
+    Expected columns: Date, Day, Slot, Cohort Name, Campaign ID, Exclusion,
+    Title, Content, Image
     Adds '_date' (Timestamp) and '_slot' (lowercase string) columns.
     Rows with unparseable dates or blank campaign IDs are filtered out.
     """
@@ -370,6 +371,8 @@ def load_clinic_mastersheet(path: Path) -> pd.DataFrame:
         df["Slot"] = ""
     if "Exclusion" not in df.columns:
         df["Exclusion"] = ""
+    if "Image" not in df.columns:
+        df["Image"] = ""
 
     df["_date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
     df["_slot"] = df["Slot"].fillna("").str.strip().str.lower()
@@ -426,11 +429,11 @@ def build_priority_files(
 
     targeted_emails: set = set()
     summary_rows = []
-    campaign_meta_rows = []
 
     for priority, (_, row) in enumerate(run_df.iterrows(), start=1):
         mastersheet_cohort_name = str(row["Cohort Name"]).strip()
         campaign_id = str(row["Campaign ID"]).strip()
+        image_name = str(row.get("Image", "")).strip()
         cohort_name = campaign_cohort_name_map.get(campaign_id, mastersheet_cohort_name)
 
         candidate_tuples = cohort_index.get(campaign_id, [])
@@ -513,6 +516,10 @@ def build_priority_files(
                 "cohort_name": cohort_name,
                 "mastersheet_cohort_name": mastersheet_cohort_name,
                 "campaign_id": campaign_id,
+                "image_name": image_name,
+                "image_url": "",
+                "base_campaign_id": campaign_id,
+                "img_campaign_id": "",
                 "title_template": str(row.get("Title", "")).strip(),
                 "content_template": str(row.get("Content", "")).strip(),
                 "input_candidates": input_candidates,
@@ -523,21 +530,6 @@ def build_priority_files(
                 "exclusion_cohorts": "; ".join(exclusion_cohort_names),
                 "final_count": len(final_tuples),
                 "output_file": out_name,
-            }
-        )
-        campaign_meta_rows.append(
-            {
-                "priority": priority,
-                "cohort_name": cohort_name,
-                "mastersheet_cohort_name": mastersheet_cohort_name,
-                "campaign_id": campaign_id,
-                "title_template": str(row.get("Title", "")).strip(),
-                "content_template": str(row.get("Content", "")).strip(),
-                "cohort_size": input_candidates,
-                "excluded_by_priority": excluded_by_priority,
-                "excluded_by_default": excluded_by_default,
-                "excluded_by_exclusion_col": excluded_by_exclusion_col,
-                "final_count": len(final_tuples),
             }
         )
 
@@ -557,6 +549,10 @@ def build_priority_files(
                 "slot": slot_value,
                 "priority": priority,
                 "campaign_id": campaign_id,
+                "image_name": str(row.get("image_name", "")).strip(),
+                "image_url": str(row.get("image_url", "")).strip(),
+                "base_campaign_id": str(row.get("base_campaign_id", "")).strip(),
+                "img_campaign_id": str(row.get("img_campaign_id", "")).strip(),
                 "utm_campaign": extract_utm_campaign(resolved_url),
                 "title_template": str(row.get("title_template", "")).strip(),
                 "content_template": str(row.get("content_template", "")).strip(),
@@ -577,6 +573,10 @@ def build_priority_files(
             "slot",
             "priority",
             "campaign_id",
+            "image_name",
+            "image_url",
+            "base_campaign_id",
+            "img_campaign_id",
             "utm_campaign",
             "title_template",
             "content_template",
@@ -587,9 +587,16 @@ def build_priority_files(
         ],
     ).to_csv(log_summary_path, index=False)
 
-    pd.DataFrame(campaign_meta_rows).to_csv(
-        output_dir / "campaign_meta.csv", index=False
-    )
+    legacy_meta_path = output_dir / "campaign_meta.csv"
+    if legacy_meta_path.exists():
+        try:
+            legacy_meta_path.unlink()
+        except PermissionError:
+            print(
+                f"  [WARNING] Could not remove legacy metadata file "
+                f"{legacy_meta_path}. Close it and rerun Stage 2 if you want "
+                "only summary.csv in the output folder."
+            )
     pd.DataFrame(summary_rows).to_csv(output_dir / "summary.csv", index=False)
 
     date_str = run_date.strftime("%d/%m/%Y")

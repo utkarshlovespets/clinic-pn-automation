@@ -6,7 +6,8 @@ DISCLAIMER: This script defaults to DRY-RUN mode.
     and approved by the team.
 
 Expects 03_prepare_campaign_content.py to have already been run so that
-each priority CSV contains title, body, and campaign_id columns.
+each priority CSV contains title, body, campaign_id, and optional image_url
+columns.
 
 Usage (dry-run, safe default):
     python 04_trigger_campaign.py --output-dir outputs/19032026_morning
@@ -45,7 +46,7 @@ if str(PROJECT_ROOT) not in sys.path:
 BATCH_SIZE = 1000
 MAX_WORKERS_DEFAULT = 200
 LIVE_COUNTDOWN_SECONDS = 10
-LOG_FIELDS = ["timestamp", "email", "utm_name", "clicked", "title", "body"]
+LOG_FIELDS = ["timestamp", "email", "utm_name", "clicked", "title", "body", "image_url"]
 
 DISCLAIMER_DRY_RUN = """
 ================================================================================
@@ -88,7 +89,7 @@ def build_jobs(
     output_dir: Path,
     cohorts: Optional[Set[str]] = None,
     default_campaign_id: Optional[int] = None,
-) -> List[Tuple[str, int, int, List[str], str, str, str, str, str]]:
+) -> List[Tuple[str, int, int, List[str], str, str, str, str, str, str]]:
     """Build the full list of API call jobs from an output directory.
 
     Reads title and body directly from enriched priority CSVs (produced by
@@ -99,7 +100,7 @@ def build_jobs(
       4. Chunks each group into batches of BATCH_SIZE.
 
     Args:
-        output_dir: Directory containing priority CSVs and campaign_meta.csv.
+        output_dir: Directory containing priority CSVs and summary.csv.
         cohorts:    Optional set of cohort names to include. If None, all
                     cohorts are processed.
         default_campaign_id:
@@ -108,16 +109,20 @@ def build_jobs(
 
     Returns:
         List of (cohort_name, priority, campaign_id, batch_emails, copy1, copy2,
-                 android_dl, ios_dl, output_dir_name) tuples in priority order.
+                 android_dl, ios_dl, image_url, output_dir_name) tuples in
+                 priority order.
 
     Raises:
-        FileNotFoundError: If campaign_meta.csv is missing.
-        ValueError: If required columns are absent from campaign_meta.csv.
+        FileNotFoundError: If summary.csv is missing.
+        ValueError: If required columns are absent from summary.csv.
     """
-    meta_path = output_dir / "campaign_meta.csv"
+    summary_path = output_dir / "summary.csv"
+    legacy_meta_path = output_dir / "campaign_meta.csv"
+    meta_path = summary_path if summary_path.exists() else legacy_meta_path
+    using_legacy_meta = meta_path == legacy_meta_path
     if not meta_path.exists():
         raise FileNotFoundError(
-            f"campaign_meta.csv not found in {output_dir}. "
+            f"summary.csv not found in {output_dir}. "
             "Run 02_generate_priority_exclusions.py first."
         )
 
@@ -125,9 +130,9 @@ def build_jobs(
     required_meta = {"priority", "cohort_name"}
     missing = required_meta - set(meta_df.columns)
     if missing:
-        raise ValueError(f"campaign_meta.csv is missing columns: {sorted(missing)}")
+        raise ValueError(f"{meta_path.name} is missing columns: {sorted(missing)}")
 
-    # Build priority -> cohort_name lookup (fallback when summary.csv is absent).
+    # Build priority -> cohort_name lookup (fallback for old metadata files).
     cohort_name_lookup: dict = {}
     for _, mrow in meta_df.iterrows():
         try:
@@ -136,17 +141,13 @@ def build_jobs(
             continue
         cohort_name_lookup[p] = str(mrow["cohort_name"]).strip()
 
-    # Optional file-level mapping from summary.csv.
-    # This prevents stale NN_*.csv files (from older runs) from being triggered.
     summary_map = {}
-    summary_path = output_dir / "summary.csv"
-    if summary_path.exists():
-        summary_df = pd.read_csv(summary_path, dtype=str, keep_default_na=False)
+    if not using_legacy_meta:
         required_summary = {"priority", "cohort_name", "output_file"}
-        missing_summary = required_summary - set(summary_df.columns)
+        missing_summary = required_summary - set(meta_df.columns)
         if missing_summary:
             raise ValueError(f"summary.csv is missing columns: {sorted(missing_summary)}")
-        for _, srow in summary_df.iterrows():
+        for _, srow in meta_df.iterrows():
             output_file = str(srow.get("output_file", "")).strip()
             if not output_file:
                 continue
@@ -158,6 +159,25 @@ def build_jobs(
                 "priority": summary_priority,
                 "cohort_name": str(srow.get("cohort_name", "")).strip(),
             }
+    else:
+        # Legacy fallback for output folders produced before summary.csv became
+        # the canonical metadata file.
+        summary_df = meta_df
+        required_summary = {"priority", "cohort_name", "output_file"}
+        missing_summary = required_summary - set(summary_df.columns)
+        if not missing_summary:
+            for _, srow in summary_df.iterrows():
+                output_file = str(srow.get("output_file", "")).strip()
+                if not output_file:
+                    continue
+                try:
+                    summary_priority = int(str(srow.get("priority", "")).strip())
+                except (ValueError, TypeError):
+                    continue
+                summary_map[output_file] = {
+                    "priority": summary_priority,
+                    "cohort_name": str(srow.get("cohort_name", "")).strip(),
+                }
 
     # Discover priority CSVs.
     if summary_map:
@@ -182,7 +202,7 @@ def build_jobs(
         return []
 
     output_dir_name = output_dir.name
-    all_jobs: List[Tuple[str, int, int, List[str], str, str, str, str, str]] = []
+    all_jobs: List[Tuple[str, int, int, List[str], str, str, str, str, str, str]] = []
 
     for csv_path in csv_files:
         file_meta = summary_map.get(csv_path.name)
@@ -221,6 +241,17 @@ def build_jobs(
             # campaign_id is expected to be constant for each cohort CSV.
             campaign_id_raw = str(users_df["campaign_id"].iloc[0]).strip() \
                 if "campaign_id" in users_df.columns else ""
+            image_name = str(users_df["image_name"].iloc[0]).strip() \
+                if "image_name" in users_df.columns else ""
+            image_url = str(users_df["image_url"].iloc[0]).strip() \
+                if "image_url" in users_df.columns else ""
+            if image_name and not image_url:
+                print(
+                    f"  [WARNING] {csv_path.name}: image '{image_name}' is set "
+                    "but image_url is blank. Run 03_prepare_campaign_content.py "
+                    "with a valid Image_Mapping export -- skipping."
+                )
+                continue
             if campaign_id_raw:
                 try:
                     campaign_id = int(campaign_id_raw)
@@ -230,6 +261,12 @@ def build_jobs(
                         f"{campaign_id_raw!r} -- skipping."
                     )
                     continue
+            elif image_name:
+                print(
+                    f"  [WARNING] {csv_path.name}: image '{image_name}' is set "
+                    "but img_campaign_id/effective campaign_id is blank -- skipping."
+                )
+                continue
             elif default_campaign_id is not None:
                 campaign_id = default_campaign_id
                 print(
@@ -265,7 +302,7 @@ def build_jobs(
                     batch = emails[i : i + BATCH_SIZE]
                     all_jobs.append((
                         cohort_name, priority, campaign_id, batch, copy1, copy2,
-                        android_dl, ios_dl, output_dir_name,
+                        android_dl, ios_dl, image_url, output_dir_name,
                     ))
 
     return all_jobs
@@ -274,7 +311,7 @@ def build_jobs(
 # -- API call ------------------------------------------------------------------
 
 def send_request(
-    job: Tuple[str, int, int, List[str], str, str, str, str, str],
+    job: Tuple[str, int, int, List[str], str, str, str, str, str, str],
     headers: dict,
     url: str,
     dry_run: bool,
@@ -286,7 +323,7 @@ def send_request(
     Args:
         job:               (cohort_name, priority, campaign_id, batch_emails,
                             copy1, copy2, android_deeplink, ios_deeplink,
-                            output_dir_name)
+                            image_url, output_dir_name)
         headers:           CleverTap auth headers.
         url:               External Trigger API endpoint.
         dry_run:           If True, print payload instead of making HTTP request.
@@ -297,13 +334,15 @@ def send_request(
     Returns:
         Human-readable result string.
     """
-    cohort_name, priority, campaign_id, emails, copy1, copy2, android_dl, ios_dl, _ = job
+    cohort_name, priority, campaign_id, emails, copy1, copy2, android_dl, ios_dl, image_url, _ = job
 
     ext_trigger = {"title": copy1, "body": copy2}
     if android_dl:
         ext_trigger["android_deeplink"] = android_dl
     if ios_dl:
         ext_trigger["ios_deeplink"] = ios_dl
+    if image_url:
+        ext_trigger["image_url"] = image_url
 
     payload = {
         "to": {"email": emails},
@@ -410,7 +449,7 @@ def run_parallel(
             else:
                 print(result_str)
 
-            cohort_name, priority, _campaign_id, emails, copy1, copy2, android_dl, ios_dl, output_dir_name = job
+            cohort_name, priority, _campaign_id, emails, copy1, copy2, android_dl, ios_dl, image_url, output_dir_name = job
             utm_name = extract_utm_name(android_dl, ios_dl)
 
             ts = datetime.now().isoformat(timespec="seconds")
@@ -422,6 +461,7 @@ def run_parallel(
                     "clicked": "",
                     "title": copy1[:120],
                     "body": copy2[:120],
+                    "image_url": image_url,
                     "_output_dir": output_dir_name,
                 })
 

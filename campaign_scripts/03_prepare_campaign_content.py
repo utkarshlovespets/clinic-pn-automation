@@ -1,4 +1,4 @@
-"""Append resolved title / body and deeplink columns to each priority exclusion CSV.
+"""Append resolved title / body, deeplink, and image columns to each priority exclusion CSV.
 
 Reads the output directory produced by 02_generate_priority_exclusions.py,
 resolves personalized (or generic) campaign content per user, builds deeplinks
@@ -8,6 +8,10 @@ Added columns:
     title           -- resolved push notification title
     body           -- resolved push notification body
     campaign_id      -- CleverTap campaign ID from cohort_mapping.csv
+    base_campaign_id -- generic CleverTap campaign ID from cohort_mapping.csv
+    img_campaign_id  -- image CleverTap campaign ID from cohort_mapping.csv
+    image_name       -- image name from summary.csv
+    image_url        -- image URL from image_mapping.csv
     android_deeplink -- Android deeplink URL with {date} placeholder filled in
     ios_deeplink     -- iOS universal link URL with {date} placeholder filled in
 
@@ -36,6 +40,11 @@ cohort_mapping.csv column format:
     campaign_id      -- CleverTap External Trigger campaign ID for this cohort
     android_base_url -- full Android URL template; use {date} where the date goes
     ios_base_url     -- full iOS URL template; use {date} where the date goes
+    img_campaign_id  -- optional CleverTap campaign ID used when image_name is set
+
+image_mapping.csv column format:
+    image_name -- name used in Clinic_PN_Automation.Image
+    image_url  -- URL passed to CleverTap as ExternalTrigger.image_url
 
     Example row:
         Rajaji_Nagar_n2b_15km,
@@ -43,7 +52,7 @@ cohort_mapping.csv column format:
         https://supertails.com/pages/supertails-clinic?utm_source=Clevertap&utm_medium=MobilePush&utm_campaign={date}_MP_1_Clinic_xxRAJ
 
 After this script runs, each NN_<cohort>.csv will have columns:
-    Email, First Name, Pet Name, title, body[, campaign_id, android_deeplink, ios_deeplink]
+    Email, First Name, Pet Name, title, body[, campaign_id, android_deeplink, ios_deeplink, image_url]
 
 04_trigger_campaign.py then reads title/body directly without any
 further template resolution.
@@ -70,6 +79,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from utils import normalize_cohort, resolve_template
 
 COHORT_CODE_COL = "cohort_code"
+IMAGE_NAME_COL = "image_name"
+IMAGE_URL_COL = "image_url"
 
 
 # -- Deeplink helpers ----------------------------------------------------------
@@ -81,7 +92,9 @@ def load_deeplink_map(path: Path) -> dict:
 
     Returns:
         {
-            "cid:<campaign_id>": (android_url_template, ios_url_template, campaign_id),
+            "cid:<campaign_id>": (
+                android_url_template, ios_url_template, campaign_id, img_campaign_id
+            ),
             "cohort:<normalized_cohort_key>": (...),
         }
 
@@ -106,12 +119,75 @@ def load_deeplink_map(path: Path) -> dict:
             str(row["android_base_url"]).strip(),
             str(row["ios_base_url"]).strip(),
             campaign_id,
+            str(row.get("img_campaign_id", "")).strip(),
         )
         if campaign_id:
             result[f"cid:{campaign_id}"] = value
         if cohort_key:
             result[f"cohort:{cohort_key}"] = value
     return result
+
+
+def normalize_header(name: str) -> str:
+    """Normalize CSV headers for lenient mapping-file column lookup."""
+    return str(name).strip().lower().replace(" ", "_")
+
+
+def get_column(df: pd.DataFrame, *aliases: str) -> str:
+    """Return the actual column name matching one of the normalized aliases."""
+    columns = {normalize_header(col): col for col in df.columns}
+    for alias in aliases:
+        found = columns.get(normalize_header(alias))
+        if found is not None:
+            return found
+    raise ValueError(f"Missing required column. Expected one of: {list(aliases)}")
+
+
+def load_image_map(path: Path) -> dict:
+    """Load Image_Mapping and return {normalized image_name: image_url}."""
+    if not path.exists():
+        raise FileNotFoundError(f"Image mapping not found: {path}")
+
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+    image_name_col = get_column(df, IMAGE_NAME_COL, "image", "name")
+    image_url_col = get_column(df, IMAGE_URL_COL, "url", "link")
+
+    result = {}
+    for _, row in df.iterrows():
+        image_name = str(row.get(image_name_col, "")).strip()
+        image_url = str(row.get(image_url_col, "")).strip()
+        if image_name:
+            result[normalize_cohort(image_name)] = image_url
+    return result
+
+
+def apply_metadata_updates(path: Path, updates: dict) -> None:
+    """Apply per-priority campaign/image updates to a metadata CSV."""
+    if not path.exists() or not updates:
+        return
+
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if "priority" not in df.columns:
+        return
+
+    for col in (
+        "campaign_id",
+        "base_campaign_id",
+        "img_campaign_id",
+        "image_name",
+        "image_url",
+        "uses_image",
+    ):
+        if col not in df.columns:
+            df[col] = ""
+
+    for priority, values in updates.items():
+        mask = df["priority"].astype(str).str.strip().eq(str(priority))
+        for col, value in values.items():
+            if col in df.columns:
+                df.loc[mask, col] = value
+
+    df.to_csv(path, index=False)
 
 
 def build_deeplink(url_template: str, date_formatted: str, priority_token: str) -> str:
@@ -159,7 +235,11 @@ def get_deeplink_priority_token(output_dir: Path, priority: int) -> str:
 
 # -- Core logic ----------------------------------------------------------------
 
-def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) -> None:
+def prepare_content(
+    output_dir: Path,
+    deeplink_map_path: Optional[Path] = None,
+    image_map_path: Optional[Path] = None,
+) -> None:
     """Enrich all priority CSVs in output_dir with title, body, and deeplink columns.
 
     Args:
@@ -169,13 +249,16 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
                            When None, those columns are omitted.
 
     Raises:
-        FileNotFoundError: If campaign_meta.csv or deeplink_map_path is missing.
+        FileNotFoundError: If summary.csv or deeplink_map_path is missing.
         ValueError:        If required columns are absent from either CSV.
     """
-    meta_path = output_dir / "campaign_meta.csv"
+    summary_path = output_dir / "summary.csv"
+    legacy_meta_path = output_dir / "campaign_meta.csv"
+    meta_path = summary_path if summary_path.exists() else legacy_meta_path
+    using_legacy_meta = meta_path == legacy_meta_path
     if not meta_path.exists():
         raise FileNotFoundError(
-            f"campaign_meta.csv not found in {output_dir}. "
+            f"summary.csv not found in {output_dir}. "
             "Run 02_generate_priority_exclusions.py first."
         )
 
@@ -183,33 +266,34 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
     required = {"priority", "cohort_name", "title_template", "content_template"}
     missing = required - set(meta_df.columns)
     if missing:
-        raise ValueError(f"campaign_meta.csv is missing columns: {sorted(missing)}")
+        raise ValueError(f"{meta_path.name} is missing columns: {sorted(missing)}")
 
-    # Build priority -> (cohort_name, campaign_id, title_template, content_template) lookup.
+    # Build priority -> metadata lookup.
     meta_lookup: dict = {}
     for _, row in meta_df.iterrows():
         try:
             p = int(row["priority"])
         except (ValueError, TypeError):
             continue
-        meta_lookup[p] = (
-            str(row["cohort_name"]).strip(),
-            str(row.get("campaign_id", "")).strip(),
-            str(row["title_template"]).strip(),
-            str(row["content_template"]).strip(),
-        )
+        meta_lookup[p] = {
+            "cohort_name": str(row["cohort_name"]).strip(),
+            "campaign_id": (
+                str(row.get("base_campaign_id", "")).strip()
+                or str(row.get("campaign_id", "")).strip()
+            ),
+            "title_template": str(row["title_template"]).strip(),
+            "content_template": str(row["content_template"]).strip(),
+        "image_name": str(row.get(IMAGE_NAME_COL, "")).strip(),
+        }
+    has_image_rows = any(meta["image_name"] for meta in meta_lookup.values())
 
-    # Optional file-level mapping from summary.csv.
-    # This prevents stale NN_*.csv files (from older runs) from being processed.
     summary_map = {}
-    summary_path = output_dir / "summary.csv"
-    if summary_path.exists():
-        summary_df = pd.read_csv(summary_path, dtype=str, keep_default_na=False)
+    if not using_legacy_meta:
         required_summary = {"priority", "cohort_name", "output_file"}
-        missing_summary = required_summary - set(summary_df.columns)
+        missing_summary = required_summary - set(meta_df.columns)
         if missing_summary:
             raise ValueError(f"summary.csv is missing columns: {sorted(missing_summary)}")
-        for _, srow in summary_df.iterrows():
+        for _, srow in meta_df.iterrows():
             output_file = str(srow.get("output_file", "")).strip()
             if not output_file:
                 continue
@@ -221,6 +305,25 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
                 "priority": summary_priority,
                 "cohort_name": str(srow.get("cohort_name", "")).strip(),
             }
+    else:
+        # Legacy fallback for output folders produced before summary.csv became
+        # the canonical metadata file.
+        summary_df = meta_df
+        required_summary = {"priority", "cohort_name", "output_file"}
+        missing_summary = required_summary - set(summary_df.columns)
+        if not missing_summary:
+            for _, srow in summary_df.iterrows():
+                output_file = str(srow.get("output_file", "")).strip()
+                if not output_file:
+                    continue
+                try:
+                    summary_priority = int(str(srow.get("priority", "")).strip())
+                except (ValueError, TypeError):
+                    continue
+                summary_map[output_file] = {
+                    "priority": summary_priority,
+                    "cohort_name": str(srow.get("cohort_name", "")).strip(),
+                }
 
     # Load deeplink map if provided.
     deeplink_map: dict = {}
@@ -228,6 +331,20 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
     if use_deeplinks:
         deeplink_map = load_deeplink_map(deeplink_map_path)
         print(f"  Cohort mapping loaded: {len(deeplink_map)} lookup key(s) mapped.")
+
+    image_map: dict = {}
+    if image_map_path is not None:
+        try:
+            image_map = load_image_map(image_map_path)
+            print(f"  Image mapping  loaded: {len(image_map)} image(s) mapped.")
+        except FileNotFoundError:
+            if has_image_rows:
+                print(
+                    f"  [WARNING] Image mapping not found: {image_map_path} "
+                    "-- image_url will be blank."
+                )
+    elif has_image_rows:
+        print("  [WARNING] Image mapping not provided -- image_url will be blank.")
 
     # Date for {date} substitution in URL templates (e.g. "19March").
     date_formatted = format_run_date(output_dir)
@@ -255,6 +372,7 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
 
     total_enriched = 0
     total_rows = 0
+    metadata_updates = {}
 
     for csv_path in csv_files:
         file_meta = summary_map.get(csv_path.name)
@@ -271,16 +389,23 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
 
         if priority not in meta_lookup:
             print(
-                f"  [WARNING] No campaign_meta entry for priority {priority} "
+                f"  [WARNING] No metadata entry for priority {priority} "
                 f"({csv_path.name}) -- skipping."
             )
             continue
 
-        cohort_name, meta_campaign_id, title_tpl, content_tpl = meta_lookup[priority]
+        meta = meta_lookup[priority]
+        cohort_name = meta["cohort_name"]
+        meta_campaign_id = meta["campaign_id"]
+        title_tpl = meta["title_template"]
+        content_tpl = meta["content_template"]
+        image_name = meta["image_name"]
         deeplink_cohort = file_cohort_name or cohort_name
 
         # Resolve deeplinks for this cohort (same value for every user in the file).
-        campaign_id = ""
+        campaign_id = meta_campaign_id
+        base_campaign_id = meta_campaign_id
+        img_campaign_id = ""
         android_deeplink = ""
         ios_deeplink = ""
         if use_deeplinks:
@@ -288,14 +413,20 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
             cohort_key = normalize_cohort(deeplink_cohort)
             deeplink_key = f"cid:{meta_campaign_id}" if meta_campaign_id else f"cohort:{cohort_key}"
             if deeplink_key in deeplink_map:
-                android_tpl, ios_tpl, campaign_id = deeplink_map[deeplink_key]
-                if not campaign_id:
+                android_tpl, ios_tpl, base_campaign_id, img_campaign_id = deeplink_map[deeplink_key]
+                campaign_id = img_campaign_id if image_name else base_campaign_id
+                if image_name and not img_campaign_id:
+                    print(
+                        f"  [WARNING] {csv_path.name}: image '{image_name}' is set "
+                        "but img_campaign_id is blank in cohort mapping."
+                    )
+                elif not campaign_id:
                     print(
                         f"  [WARNING] {csv_path.name}: '{deeplink_cohort}' has blank "
                         "campaign_id in deeplink map."
                     )
             else:
-                android_tpl, ios_tpl, campaign_id = "", "", ""
+                android_tpl, ios_tpl, base_campaign_id, img_campaign_id, campaign_id = "", "", "", "", ""
                 print(
                     f"  [WARNING] {csv_path.name}: campaign_id '{meta_campaign_id}' "
                     f"('{deeplink_cohort}') not in deeplink map "
@@ -303,6 +434,24 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
                 )
             android_deeplink = build_deeplink(android_tpl, date_formatted, deeplink_priority)
             ios_deeplink = build_deeplink(ios_tpl, date_formatted, deeplink_priority)
+
+        image_url = ""
+        if image_name:
+            image_url = image_map.get(normalize_cohort(image_name), "")
+            if not image_url:
+                print(
+                    f"  [WARNING] {csv_path.name}: image '{image_name}' "
+                    "not found in Image_Mapping -- image_url will be blank."
+                )
+
+        metadata_updates[priority] = {
+            "campaign_id": campaign_id,
+            "base_campaign_id": base_campaign_id,
+            "img_campaign_id": img_campaign_id,
+            "image_name": image_name,
+            "image_url": image_url,
+            "uses_image": "TRUE" if image_name else "FALSE",
+        }
 
         df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
 
@@ -313,9 +462,13 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
                 df["campaign_id"] = ""
                 df["android_deeplink"] = ""
                 df["ios_deeplink"] = ""
+            df["base_campaign_id"] = base_campaign_id
+            df["img_campaign_id"] = img_campaign_id
+            df["image_name"] = image_name
+            df["image_url"] = image_url
             csv_path.parent.mkdir(parents=True, exist_ok=True)
             df.to_csv(csv_path, index=False)
-            cols = "title/body" + ("/campaign_id/deeplinks" if use_deeplinks else "")
+            cols = "title/body" + ("/campaign_id/deeplinks" if use_deeplinks else "") + "/image"
             print(f"  {csv_path.name}: 0 rows -- written with empty {cols}.")
             continue
 
@@ -348,6 +501,10 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
             df["campaign_id"] = campaign_id
             df["android_deeplink"] = android_deeplink
             df["ios_deeplink"] = ios_deeplink
+        df["base_campaign_id"] = base_campaign_id
+        df["img_campaign_id"] = img_campaign_id
+        df["image_name"] = image_name
+        df["image_url"] = image_url
 
         csv_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(csv_path, index=False)
@@ -359,6 +516,12 @@ def prepare_content(output_dir: Path, deeplink_map_path: Optional[Path] = None) 
         )
         total_enriched += 1
         total_rows += len(df)
+
+    apply_metadata_updates(summary_path, metadata_updates)
+    if using_legacy_meta:
+        apply_metadata_updates(legacy_meta_path, metadata_updates)
+    log_summary_path = output_dir.parent / "log" / "summary" / f"{output_dir.name}.csv"
+    apply_metadata_updates(log_summary_path, metadata_updates)
 
     print(
         f"\nDone. {total_enriched}/{len(csv_files)} CSV(s) enriched, "
@@ -408,6 +571,15 @@ def main() -> None:
             "(default: data/cohort_mapping.csv)"
         ),
     )
+    parser.add_argument(
+        "--image-map",
+        default="data/image_mapping.csv",
+        help=(
+            "Path to Image_Mapping export "
+            "(columns: image_name, image_url). Appends image_url when image_name "
+        "is present in summary.csv. (default: data/image_mapping.csv)"
+        ),
+    )
     args = parser.parse_args()
 
     raw_dl = Path(args.deeplink_map)
@@ -415,6 +587,11 @@ def main() -> None:
     if not deeplink_map_path.exists():
         print(f"[WARNING] Cohort mapping not found: {deeplink_map_path} -- deeplink columns will be skipped.")
         deeplink_map_path = None
+
+    raw_image = Path(args.image_map)
+    image_map_path = raw_image if raw_image.is_absolute() else (project_root / raw_image).resolve()
+    if not image_map_path.exists():
+        image_map_path = None
 
     # Resolve output directories to process.
     if args.output_dir:
@@ -444,9 +621,11 @@ def main() -> None:
         print(f"Preparing campaign content for: {output_dir.name}")
         if deeplink_map_path:
             print(f"Cohort mapping : {deeplink_map_path}")
+        if image_map_path:
+            print(f"Image mapping  : {image_map_path}")
         print()
         try:
-            prepare_content(output_dir, deeplink_map_path)
+            prepare_content(output_dir, deeplink_map_path, image_map_path)
         except (FileNotFoundError, ValueError) as exc:
             print(f"[ERROR] {output_dir.name}: {exc}")
 

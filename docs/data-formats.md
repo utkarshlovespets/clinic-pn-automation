@@ -14,6 +14,7 @@ CSV schema reference for current inputs, intermediate files, enriched outputs, a
 | `Cohort Name` | string | Friendly mastersheet label |
 | `Campaign ID` | string | Matches `campaign_id` in `data/cohort_mapping.csv` |
 | `Exclusion` | string | Optional comma-separated exclusion names |
+| `Image` | string | Optional image name. When present, Stage 3 resolves it through `data/image_mapping.csv` and uses `img_campaign_id` |
 | `Title` | string | Push title template |
 | `Content` | string | Push body template |
 
@@ -26,6 +27,7 @@ Fetched from `Cohort_Mapping`.
 | `cohort_name` | string | Personal/reference name only |
 | `cohort_code` | string | Required automation key |
 | `campaign_id` | string | CleverTap External Trigger campaign ID |
+| `img_campaign_id` | string | CleverTap External Trigger campaign ID used when the mastersheet row has an image |
 | `cohort_dataset` | string | Cohort CSV filename under `data/cohorts/` |
 | `android_base_url` | string | Android URL template |
 | `ios_base_url` | string | iOS URL template |
@@ -39,6 +41,15 @@ Fetched from `Exclusion_Mapping`.
 |---|---|---|
 | `Exclusion Name` | string | Name used in mastersheet `Exclusion` cells |
 | `Dataset` | string | Exclusion CSV filename under `data/cohorts/` |
+
+### `data/image_mapping.csv`
+
+Fetched from `Image_Mapping`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `image_name` | string | Name used in mastersheet `Image` cells |
+| `image_url` | string | URL passed as `ExternalTrigger.image_url` |
 
 ### `data/cohorts/*.csv`
 
@@ -64,7 +75,9 @@ One file per campaign row after priority, default, and explicit exclusions.
 | `First Name` | string | First-name value used for personalization |
 | `Pet Name` | string | Pet-name value used for personalization |
 
-### `campaign_meta.csv`
+### `summary.csv`
+
+One metadata row per generated priority CSV. This is the canonical Stage 2 metadata file.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -72,23 +85,19 @@ One file per campaign row after priority, default, and explicit exclusions.
 | `cohort_name` | string | `cohort_code` resolved from `Cohort_Mapping` |
 | `mastersheet_cohort_name` | string | Friendly label from mastersheet |
 | `campaign_id` | string | Campaign ID from mastersheet |
+| `base_campaign_id` | string | Generic campaign ID from the mastersheet/cohort map |
+| `img_campaign_id` | string | Image campaign ID from `cohort_mapping.csv` |
+| `image_name` | string | Image name from the mastersheet `Image` column |
+| `image_url` | string | Resolved URL from `image_mapping.csv`; populated by Stage 3 |
 | `title_template` | string | Raw title template |
 | `content_template` | string | Raw body template |
-| `cohort_size` | integer | Unique candidate emails before filtering |
+| `input_candidates` | integer | Unique candidate emails before filtering |
 | `excluded_by_priority` | integer | Removed because already targeted by a higher-priority row |
 | `excluded_by_default` | integer | Removed because of `cohort_mapping.csv.exclusion` |
 | `excluded_by_exclusion_col` | integer | Removed because of the mastersheet `Exclusion` column |
-| `final_count` | integer | Users written to the priority CSV |
-
-### `summary.csv`
-
-Per-output-file Stage 2 summary. Includes the `campaign_meta.csv` count fields plus:
-
-| Column | Type | Notes |
-|---|---|---|
-| `input_candidates` | integer | Unique candidate emails before filtering |
 | `default_exclusion_cohorts` | string | Default exclusions from `cohort_mapping.csv.exclusion` |
 | `exclusion_cohorts` | string | Row-level exclusions from the mastersheet `Exclusion` column |
+| `final_count` | integer | Users written to the priority CSV |
 | `output_file` | string | Generated cohort CSV filename |
 
 ### `outputs/log/summary/{DDMMYYYY}_{slot}.csv`
@@ -101,6 +110,10 @@ Stage 2 writes a compact run summary here.
 | `slot` | string |
 | `priority` | integer |
 | `campaign_id` | string |
+| `base_campaign_id` | string |
+| `img_campaign_id` | string |
+| `image_name` | string |
+| `image_url` | string |
 | `utm_campaign` | string |
 | `title_template` | string |
 | `content_template` | string |
@@ -117,7 +130,11 @@ Stage 3 enriches the same `NN_{cohort_code}.csv` files in place.
 |---|---|---|
 | `title` | string | Personalized title |
 | `body` | string | Personalized body |
-| `campaign_id` | string | Copied from `cohort_mapping.csv` lookup by campaign ID |
+| `campaign_id` | string | Effective CleverTap campaign ID. Uses `img_campaign_id` when `image_name` is present |
+| `base_campaign_id` | string | Generic CleverTap campaign ID |
+| `img_campaign_id` | string | Image CleverTap campaign ID |
+| `image_name` | string | Image name from mastersheet metadata |
+| `image_url` | string | URL passed as `ExternalTrigger.image_url` |
 | `android_deeplink` | string | URL with `{date}` and `{priority}` resolved |
 | `ios_deeplink` | string | URL with `{date}` and `{priority}` resolved |
 
@@ -129,6 +146,10 @@ Campaign logs are written under:
 outputs/log/dry_run/{DDMMYYYY}_{slot}_campaign_log.csv
 outputs/log/live/{DDMMYYYY}_{slot}_campaign_log.csv
 ```
+
+| Column | Type | Notes |
+|---|---|---|
+| `image_url` | string | Image URL included in the External Trigger payload, when present |
 
 | Column | Type | Notes |
 |---|---|---|

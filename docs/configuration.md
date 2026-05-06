@@ -26,7 +26,7 @@ SLACK_API_TOKEN=<optional-token>
 
 | Variable | Used by | Notes |
 |---|---|---|
-| `SPREADSHEET_ID` | Stage 1 | Google Sheet containing all three required tabs |
+| `SPREADSHEET_ID` | Stage 1 | Google Sheet containing all four required tabs |
 | `GOOGLE_CREDENTIALS_FILE` | Stage 1 | OAuth client JSON, resolved relative to project root or `secrets/` |
 | `GOOGLE_TOKEN_FILE` | Stage 1 | Cached OAuth token, created automatically |
 | `CLEVERTAP_ACCOUNT_ID` | Stage 4 | CleverTap API account ID |
@@ -45,6 +45,7 @@ The spreadsheet must contain these tabs exactly:
 | `Clinic_PN_Automation` | Campaign schedule and copy | `data/clinic_mastersheet.csv` |
 | `Cohort_Mapping` | Campaign ID to cohort dataset, default exclusions, and deeplink templates | `data/cohort_mapping.csv` |
 | `Exclusion_Mapping` | Exclusion name to exclusion dataset | `data/exclusion_mapping.csv` |
+| `Image_Mapping` | Image name to image URL | `data/image_mapping.csv` |
 
 Stage 1 reads `A:Z` from each tab unless an explicit `--range` is used for the mastersheet.
 
@@ -58,6 +59,7 @@ Stage 1 reads `A:Z` from each tab unless an explicit `--range` is used for the m
 | `Cohort Name` | Yes | Friendly label for the mastersheet |
 | `Campaign ID` | Yes | Must match `campaign_id` in `Cohort_Mapping` |
 | `Exclusion` | No | Comma-separated names from `Exclusion_Mapping.Exclusion Name` |
+| `Image` | No | Image name from `Image_Mapping.image_name`; rows with an image use `Cohort_Mapping.img_campaign_id` |
 | `Title` | Yes for sending | Push title template |
 | `Content` | Yes for sending | Push body template |
 
@@ -70,6 +72,7 @@ Stage 2 can generate files for blank title/content rows, but `run_campaign.py` v
 | `cohort_name` | No | Friendly reference only |
 | `cohort_code` | Yes | Required automation key |
 | `campaign_id` | Yes | CleverTap External Trigger campaign ID |
+| `img_campaign_id` | No | CleverTap External Trigger campaign ID for image notifications |
 | `cohort_dataset` | Yes | File under `data/cohorts/` |
 | `android_base_url` | Yes for deeplinks | May contain `{date}` and `{priority}` |
 | `ios_base_url` | Yes for deeplinks | May contain `{date}` and `{priority}` |
@@ -78,8 +81,8 @@ Stage 2 can generate files for blank title/content rows, but `run_campaign.py` v
 Example:
 
 ```csv
-cohort_name,cohort_code,campaign_id,cohort_dataset,android_base_url,ios_base_url,exclusion
-Vaccination Due,Clinic_Vaccination_Due,1776770659,vaccination_due.csv,https://supertails.com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B,supertails-com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B,Appointment Completed
+cohort_name,cohort_code,campaign_id,img_campaign_id,cohort_dataset,android_base_url,ios_base_url,exclusion
+Vaccination Due,Clinic_Vaccination_Due,1776770659,1777770659,vaccination_due.csv,https://supertails.com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B,supertails-com/pages/supertails-clinic?utm_campaign={date}_MP_{priority}_Clinic_Vaccine_xxN2B,Appointment Completed
 ```
 
 ## `Exclusion_Mapping` Schema
@@ -94,6 +97,20 @@ Example:
 ```csv
 Exclusion Name,Dataset
 Appointment Completed,appointment_completed.csv
+```
+
+## `Image_Mapping` Schema
+
+| Column | Required | Notes |
+|---|---|---|
+| `image_name` | Yes | Name used in mastersheet `Image` cells |
+| `image_url` | Yes | URL passed to CleverTap as `ExternalTrigger.image_url` |
+
+Example:
+
+```csv
+image_name,image_url
+clinic_summer,https://example.com/clinic-summer.jpg
 ```
 
 ## URL Tokens

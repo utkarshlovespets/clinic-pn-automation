@@ -8,13 +8,15 @@ The project is a file-based campaign pipeline. Each stage reads CSV inputs, writ
 Google Sheet: Clinic_PN_Automation
 Google Sheet: Cohort_Mapping
 Google Sheet: Exclusion_Mapping
+Google Sheet: Image_Mapping
           |
           v
 Stage 1: campaign_scripts/01_fetch_clinic_mastersheet.py
           |
           |-- data/clinic_mastersheet.csv
           |-- data/cohort_mapping.csv
-          `-- data/exclusion_mapping.csv
+          |-- data/exclusion_mapping.csv
+          `-- data/image_mapping.csv
 
 data/cohorts/*.csv
           |
@@ -22,7 +24,6 @@ data/cohorts/*.csv
 Stage 2: campaign_scripts/02_generate_priority_exclusions.py
           |
           |-- outputs/{DDMMYYYY}_{slot}/NN_{cohort_code}.csv
-          |-- outputs/{DDMMYYYY}_{slot}/campaign_meta.csv
           |-- outputs/{DDMMYYYY}_{slot}/summary.csv
           `-- outputs/log/summary/{DDMMYYYY}_{slot}.csv
 
@@ -30,7 +31,7 @@ Stage 3: campaign_scripts/03_prepare_campaign_content.py
           |
           v
 outputs/{DDMMYYYY}_{slot}/NN_{cohort_code}.csv
-with title, body, campaign_id, and deeplink columns
+with title, body, campaign_id, deeplink, and image columns
 
 Stage 4: campaign_scripts/04_trigger_campaign.py
           |
@@ -45,9 +46,9 @@ Stage 4: campaign_scripts/04_trigger_campaign.py
 
 - Date and slot selection.
 - Auto-slot mode when run with no flags or only `--live`.
-- Fetching all three Google Sheet tabs.
+- Fetching all four Google Sheet tabs.
 - Passing `cohort_mapping.csv` and `exclusion_mapping.csv` into Stage 2.
-- Passing `cohort_mapping.csv` into Stage 3 for campaign IDs and deeplinks.
+- Passing `cohort_mapping.csv` and `image_mapping.csv` into Stage 3 for campaign IDs, deeplinks, and image URLs.
 - Dry-run by default, live mode only with `--live`.
 - Slack completion notification when configured.
 
@@ -55,7 +56,7 @@ Stage 4: campaign_scripts/04_trigger_campaign.py
 
 | Stage | Script | Responsibility |
 |---|---|---|
-| Stage 1 | `01_fetch_clinic_mastersheet.py` | Fetch mastersheet, cohort mapping, and exclusion mapping from Google Sheets |
+| Stage 1 | `01_fetch_clinic_mastersheet.py` | Fetch mastersheet, cohort mapping, exclusion mapping, and image mapping from Google Sheets |
 | Stage 1b | `00_fetch_cohorts.py` | Live-only cohort refresh from configured data source |
 | Stage 2 | `02_generate_priority_exclusions.py` | Build prioritized audience CSVs and apply priority/exclusion filtering |
 | Stage 3 | `03_prepare_campaign_content.py` | Resolve title/body personalization and build deeplinks |
@@ -68,6 +69,8 @@ Campaign audiences are matched by `Campaign ID` in `data/clinic_mastersheet.csv`
 `cohort_code` is the automation-facing cohort identifier used for output filenames and normalized lookups. It is required in the mapping file.
 
 Explicit exclusions are separate. Stage 2 combines default values from `data/cohort_mapping.csv.exclusion` with the mastersheet `Exclusion` cell. Each value can match an `exclusion_name` in `data/exclusion_mapping.csv` or a cohort name/code in `data/cohort_mapping.csv`.
+
+Image sends are selected per mastersheet row. If `Clinic_PN_Automation.Image` is non-blank, Stage 3 resolves it through `data/image_mapping.csv` and uses `cohort_mapping.csv.img_campaign_id` as the effective campaign ID.
 
 ## Safety
 
