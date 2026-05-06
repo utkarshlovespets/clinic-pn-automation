@@ -18,6 +18,6 @@ INNER JOIN retentionTeam.vw_cx_pins p
 LEFT JOIN retentionTeam.cx_pet_profile pet
     ON e.customer_id = pet.customer_id
 WHERE p.pincode IN (
-    '560038','560008','560075','560017','560007'
+    '560048','560037'
 )
 GROUP BY e.email;
